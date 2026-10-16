@@ -1,12 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback, useRef } from 'react';
 import { seedWorkflows, snapshot, validateWorkflow, normalizeLegacyWorkflow } from './workflows/model';
 import type { Workflow, WorkflowDraft } from './workflows/model';
-import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, KnowledgeDocument, ReceptionConfig, Skill, Team, TeamMember, TenantAccount, TenantMember, TenantRole } from './types';
+import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, InboxClosedReason, InboxConversation, InboxMessage, KnowledgeDocument, ReceptionConfig, Skill, Team, TeamMember, TenantAccount, TenantMember, TenantRole } from './types';
 import type { AppLanguage, WorkspaceMode } from './i18n';
 import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, MEMBERS_PERMISSIONS_DEMO_VERSION, now, SEED_CURRENT_MEMBER_ID, seedMembers, seedRoles, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
 import { DEFAULT_TEAM_ID, DEFAULT_TEAM_NAME, isDefaultTeam } from './teamDefaults';
 import { LOGIN_SESSION_KEY, readDemoSession } from './auth';
 import { currentMember } from './permissions';
+import { formatAnonymousVisitorName } from './utils/visitor';
 
 type Action =
   | { type: 'session.login'; username: string }
@@ -34,7 +35,12 @@ type Action =
   | { type: 'skill.delete'; id: string }
   | { type: 'channel.save'; channel: Channel }
   | { type: 'channel.toggle'; id: string; enabled: boolean }
+  | { type: 'channel.installDetected'; id: string; checkedAt: string }
   | { type: 'channel.delete'; id: string }
+  | { type: 'conversation.upsert'; conversation: InboxConversation }
+  | { type: 'conversation.message'; conversationId: string; message: InboxMessage }
+  | { type: 'conversation.close'; conversationId: string; reason: Exclude<InboxClosedReason, null>; closedAt: string }
+  | { type: 'state.sync'; state: AppState }
   | { type: 'member.add'; member: TenantMember }
   | { type: 'member.updateRole'; id: string; roleId: string }
   | { type: 'member.toggleEnabled'; id: string; enabled: boolean }
@@ -48,6 +54,7 @@ type Action =
   | { type: 'tenant.toggle'; id: string; enabled: boolean };
 
 const STORAGE_KEY = 'lingxi-agent-prototype:v3:ai-customer-20260720';
+const CHANNEL_DEMO_VERSION = 3;
 const AVATAR_REFERENCE_PREFIX = '__agent_avatar_ref__:';
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const LEGACY_TEAM_IDS: Record<string, string> = { 'team-support': '100001', 'team-sales': '100002', 'team-vip': '100003' };
@@ -161,6 +168,17 @@ function ensureMembersPermissionsData(state: AppState): AppState {
   };
 }
 
+function ensureModernChannelDemoData(state: AppState): AppState {
+  if ((state.channelDemoVersion ?? 0) >= CHANNEL_DEMO_VERSION) return state;
+  const demoIds = new Set(['channel-web-widget-main', 'channel-chat-page-support']);
+  const existingIds = new Set(state.channels.map((channel) => channel.id));
+  const additions = seedState.channels.filter((channel) => demoIds.has(channel.id) && !existingIds.has(channel.id));
+  const channelConversations = state.channelConversations.map((conversation) => conversation.channelType === 'web-widget' || conversation.channelType === 'chat-page'
+    ? { ...conversation, customerName: formatAnonymousVisitorName(conversation.visitorId) }
+    : conversation);
+  return { ...state, channelDemoVersion: CHANNEL_DEMO_VERSION, channels: [...additions, ...state.channels], channelConversations };
+}
+
 function serializeState(state: AppState): string {
   const avatarOwners = new Map<string, string>();
   const agents = state.agents.map((agent) => {
@@ -183,6 +201,7 @@ function withStateDefaults(state: AppState): AppState {
     ...state,
     ui: { language: state.ui?.language ?? 'zh-CN', workspaceMode: state.ui?.workspaceMode ?? 'agents', lastAgentsPath: state.ui?.lastAgentsPath },
     tenantAccounts: state.tenantAccounts ?? seedState.tenantAccounts,
+    channelConversations: state.channelConversations ?? [],
   };
 }
 
@@ -210,6 +229,7 @@ function deserializeState(stored: string): AppState {
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'state.sync': return { ...action.state, session: state.session };
     case 'session.login': return { ...state, session: { username: action.username }, tenantAccounts: state.tenantAccounts.map((tenant) => tenant.ownerUsername === action.username ? { ...tenant, lastLoginAt: now() } : tenant) };
     case 'session.logout': return { ...state, session: null };
     case 'ui.language': return { ...state, ui: { ...state.ui, language: action.language } };
@@ -279,7 +299,11 @@ function reducer(state: AppState, action: Action): AppState {
     case 'skill.delete': return { ...state, skills: state.skills.filter((item) => item.id !== action.id), agents: state.agents.map((item) => ({ ...item, draft: { ...item.draft, skillIds: item.draft.skillIds.filter((id) => id !== action.id) }, published: item.published ? { ...item.published, skillIds: item.published.skillIds.filter((id) => id !== action.id) } : null })) };
     case 'channel.save': return { ...state, channels: state.channels.some((item) => item.id === action.channel.id) ? state.channels.map((item) => item.id === action.channel.id ? action.channel : item) : [action.channel, ...state.channels] };
     case 'channel.toggle': return { ...state, channels: state.channels.map((item) => item.id === action.id ? { ...item, enabled: action.enabled, updatedAt: now() } : item) };
+    case 'channel.installDetected': return { ...state, channels: state.channels.map((item) => item.id === action.id ? { ...item, installStatus: 'success', installCheckedAt: action.checkedAt } : item) };
     case 'channel.delete': return { ...state, channels: state.channels.filter((item) => item.id !== action.id) };
+    case 'conversation.upsert': return { ...state, channelConversations: state.channelConversations.some((item) => item.id === action.conversation.id) ? state.channelConversations.map((item) => item.id === action.conversation.id ? action.conversation : item) : [action.conversation, ...state.channelConversations] };
+    case 'conversation.message': return { ...state, channelConversations: state.channelConversations.map((item) => item.id === action.conversationId ? { ...item, updatedAt: action.message.sentAt, messages: [...item.messages, action.message] } : item) };
+    case 'conversation.close': return { ...state, channelConversations: state.channelConversations.map((item) => item.id === action.conversationId && item.state === 'processing' ? { ...item, state: 'closed', closedReason: action.reason, updatedAt: action.closedAt, messages: [...item.messages, { id: `system-${action.conversationId}-${action.closedAt}`, role: 'system', content: action.reason === 'timeout' ? '会话因长时间无新消息自动结束' : '会话已结束', sentAt: action.closedAt }] } : item) };
     case 'member.add': {
       const duplicate = state.members.some((item) => item.username.trim().toLowerCase() === action.member.username.trim().toLowerCase());
       if (duplicate) return state;
@@ -354,13 +378,13 @@ function loadState(): AppState {
     }) };
   };
   const withMembers = (state: AppState): AppState => withStateDefaults({ ...ensureMembersPermissionsData(state), session: readDemoSession() });
-  try { const stored = localStorage.getItem(STORAGE_KEY); return withMembers(withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : seedState)))); } catch { return withMembers(withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds(seedState)))); }
+  try { const stored = localStorage.getItem(STORAGE_KEY); return withMembers(withWorkflows(ensureModernChannelDemoData(ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : seedState))))); } catch { return withMembers(withWorkflows(ensureModernChannelDemoData(ensureKnowledgeDeleteDemoData(normalizeTeamIds(seedState))))); }
 }
 
 const StoreContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action>; saveStatus: 'saving' | 'saved' | 'error'; retrySave: () => void; login: (username: string) => void; logout: () => void } | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, loadState);
+  const [state, baseDispatch] = useReducer(reducer, undefined, loadState);
   const [persisted, setPersisted] = useState<AppState | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
   const persist = useCallback(() => {
@@ -373,16 +397,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state]);
   useEffect(persist, [persist]);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    if (!('BroadcastChannel' in window)) return;
+    const channel = new BroadcastChannel('lingxi-channel-runtime');
+    channelRef.current = channel;
+    channel.onmessage = (event: MessageEvent<Action>) => {
+      if (event.data?.type === 'conversation.upsert' || event.data?.type === 'conversation.message' || event.data?.type === 'conversation.close' || event.data?.type === 'channel.installDetected') baseDispatch(event.data);
+    };
+    return () => { channel.close(); channelRef.current = null; };
+  }, []);
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY || !event.newValue) return;
+      try { baseDispatch({ type: 'state.sync', state: deserializeState(event.newValue) }); } catch { /* ignore invalid external state */ }
+    };
+    window.addEventListener('storage', sync);
+    return () => window.removeEventListener('storage', sync);
+  }, []);
+  const dispatch = useCallback((action: Action) => {
+    baseDispatch(action);
+    if (action.type === 'conversation.upsert' || action.type === 'conversation.message' || action.type === 'conversation.close' || action.type === 'channel.installDetected') channelRef.current?.postMessage(action);
+  }, []);
   const saveStatus: 'error' | 'saved' | 'saving' = saveFailed ? 'error' : persisted === state ? 'saved' : 'saving';
   const login = useCallback((username: string) => {
     sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify({ username: username.trim() }));
-    dispatch({ type: 'session.login', username: username.trim() });
+    baseDispatch({ type: 'session.login', username: username.trim() });
   }, []);
   const logout = useCallback(() => {
     sessionStorage.removeItem(LOGIN_SESSION_KEY);
-    dispatch({ type: 'session.logout' });
+    baseDispatch({ type: 'session.logout' });
   }, []);
-  const value = useMemo(() => ({ state, dispatch, saveStatus, retrySave: persist, login, logout }), [state, saveStatus, persist, login, logout]);
+  const value = useMemo(() => ({ state, dispatch, saveStatus, retrySave: persist, login, logout }), [state, dispatch, saveStatus, persist, login, logout]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

@@ -286,6 +286,7 @@ const teams: Team[] = [
 ];
 
 export const seedState: AppState = {
+  channelConversations: [],
   ui: { language: 'zh-CN', workspaceMode: 'agents' },
   tenantAccounts: [
     { id: 'tenant-lusenbao', tenantName: '灵犀演示租户', ownerUsername: 'lusenbao49', password: 'Demo12345678!', workspacePermissions: ['agents', 'livechat'], enabled: true, createdAt: at('01', '09:00'), lastLoginAt: at('29', '22:30') },
@@ -323,11 +324,13 @@ export const seedState: AppState = {
   ],
   skills,
   channels: [
+    channel({ id: 'channel-web-widget-main', type: 'web-widget', name: '官网网站小部件', agentId: 'agent-support', enabled: true, language: 'auto', websiteDomain: 'support.example.com', allowedDomains: [], installCode: '<script src="https://cdn.example.com/widget.js" data-channel="channel-web-widget-main" async></script>', installStatus: 'success', installCheckedAt: at('11', '10:12'), brandName: 'IM Support', brandSignature: '有问题？我们随时为您提供帮助。', themeColor: '#1c1f26', widgetIcon: 'message', widgetPosition: 'bottom-right', widgetOffsetX: 24, widgetOffsetY: 24, widgetDesktopVisible: true, widgetMobileVisible: true, widgetMobilePosition: 'bottom-right', widgetMobileOffsetX: 16, widgetMobileOffsetY: 16, soundEnabled: true, updatedAt: at('11', '10:08') }),
     channel({ id: 'channel-livechat', type: 'livechat', name: '官网客户服务', agentId: 'agent-support', enabled: true, accountId: 'lc_demo_main', accessToken: 'mock_livechat_token_main', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-livechat', receiveGroups: ['general', 'after_sales'], humanGroups: ['human_support_l1'], opening: '你好，我是智能客服。请告诉我你遇到的问题。', hotQuestions: ['如何查询订单进度？', '退款一般多久到账？', '商品破损如何处理？'], ending: '如果问题已经解决，可以直接结束本次会话。', humanEnabled: true, humanFallback: '当前人工客服繁忙，我已记录你的问题，请稍后再试。', updatedAt: at('10', '16:28') }),
     channel({ id: 'channel-sales', type: 'livechat', name: '企业咨询窗口', agentId: 'agent-sales', enabled: true, accountId: 'lc_demo_sales', accessToken: 'mock_livechat_token_sales', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-sales', receiveGroups: ['enterprise_sales'], humanGroups: [], opening: '你好，我是企业咨询助手，可以为你介绍产品能力和试用方式。', hotQuestions: ['如何申请企业试用？', '不同套餐有什么区别？'], ending: '感谢咨询，销售顾问会根据你的需求继续跟进。', humanEnabled: false, humanFallback: '', updatedAt: at('09', '18:05') }),
     channel({ id: 'channel-telegram-payment', type: 'telegram', name: 'TG 充值渠道', agentId: 'agent-support', enabled: true, botToken: '123456789:mock_telegram_payment_bot', updatedAt: at('09', '16:58') }),
     channel({ id: 'channel-vip', type: 'livechat', name: '会员专属服务', agentId: 'agent-vip', enabled: true, accountId: 'lc_demo_vip', accessToken: 'mock_livechat_token_vip', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-vip', receiveGroups: ['vip_service'], humanGroups: ['vip_human_service'], opening: '你好，欢迎使用会员专属服务。', hotQuestions: ['如何查询我的会员等级？', '积分什么时候到账？'], ending: '感谢使用会员专属服务。', humanEnabled: true, humanFallback: '专属客服当前正在服务其他会员，请稍后再试。', updatedAt: at('08', '14:16') }),
     channel({ id: 'channel-logistics-backup', type: 'livechat', name: '物流服务备用通道', agentId: 'agent-logistics', enabled: false, accountId: 'lc_demo_logistics', accessToken: 'mock_livechat_token_logistics', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-logistics-backup', receiveGroups: ['logistics'], humanGroups: ['human_support_l2'], opening: '你好，请提供订单号，我来帮你查询物流进度。', hotQuestions: ['物流为什么一直没有更新？', '显示签收但没有收到怎么办？'], ending: '物流进度请以承运商最新轨迹为准。', humanEnabled: true, humanFallback: '物流专员暂时无法接入，请稍后重试。', updatedAt: at('07', '12:30') }),
+    channel({ id: 'channel-chat-page-support', type: 'chat-page', name: '客户服务聊天页面', agentId: 'agent-support', enabled: true, language: 'auto', chatPageUrl: 'https://chat.example.com/c/channel-chat-page-support', brandName: 'IM Support', brandSignature: '在线客户服务', themeColor: '#1c1f26', soundEnabled: true, updatedAt: at('06', '16:20') }),
   ],
   members: seedMembers,
   roles: seedRoles,

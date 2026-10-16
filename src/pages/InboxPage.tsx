@@ -3,33 +3,47 @@ import { useSearchParams } from 'react-router-dom';
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCalendar,
   IconCheck,
+  IconDoubleLeft,
+  IconDoubleRight,
+  IconLeft,
+  IconRight,
   IconClose,
   IconExclamationCircle,
   IconFilter,
+  IconFile,
   IconMessage,
   IconRefresh,
   IconRobot,
   IconSearch,
 } from '@arco-design/web-react/icon';
 import { Button, Empty, Input, Popover, Select } from '../components/ui';
-import livechatLogoUrl from '../assets/livechat-logo.png';
+import { ChannelTypeIcon } from '../components/ChannelTypeIcon';
 import { inboxAgents, inboxChannels, inboxConversations } from '../inboxMockData';
 import { useAppStore } from '../store';
 import type { Agent, InboxChannelType, InboxConversation } from '../types';
 
-type InboxStatus = 'processing' | 'resolved' | 'ended' | 'all';
+type InboxStatus = 'processing' | 'resolved' | 'ended';
 type LoadState = 'loading' | 'ready' | 'error';
-type FilterType = 'agent' | 'channel';
+type FilterType = 'date' | 'agent' | 'channel';
+type DateFilterPreset = 'today' | 'yesterday' | 'last7' | 'last30' | 'custom';
 
 const statusItems: { key: InboxStatus; label: string }[] = [
   { key: 'processing', label: '处理中' },
   { key: 'resolved', label: '已解决' },
   { key: 'ended', label: '已结束' },
-  { key: 'all', label: '全部' },
 ];
 
 const isInboxStatus = (value: string | null): value is InboxStatus => statusItems.some((item) => item.key === value);
+const dateFilterOptions: { key: DateFilterPreset; label: string }[] = [
+  { key: 'today', label: '今天' },
+  { key: 'yesterday', label: '昨天' },
+  { key: 'last7', label: '近 7 天' },
+  { key: 'last30', label: '近 30 天' },
+  { key: 'custom', label: '自定义时间段' },
+];
+const isDateFilterPreset = (value: string | null): value is DateFilterPreset => dateFilterOptions.some((item) => item.key === value);
 const inboxAgentSourceIds: Record<string, string> = {
   'payment-agent': 'agent-support',
   'account-agent': 'agent-sales',
@@ -47,17 +61,7 @@ function SyncedAgentAvatar({ agent }: { agent?: Agent }) {
 }
 
 function ChannelLogo({ type }: { type: InboxChannelType }) {
-  if (type === 'telegram') {
-    return <span className="inbox-channel-logo is-telegram" aria-label="Telegram">
-      <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-        <circle cx="12" cy="12" r="12" fill="#26A5E4" />
-        <path d="M17.82 7.1 15.9 17.02c-.14.72-.53.9-1.08.56l-3-2.22-1.45 1.4c-.16.16-.3.3-.6.3l.22-3.1 5.64-5.1c.25-.22-.05-.34-.38-.12l-6.98 4.4-3-.94c-.66-.2-.67-.65.14-.96l11.72-4.52c.54-.2 1.02.13.7.38Z" fill="#fff" />
-      </svg>
-    </span>;
-  }
-  return <span className="inbox-channel-logo is-livechat" aria-label="LiveChat">
-    <img src={livechatLogoUrl} alt="" aria-hidden="true" />
-  </span>;
+  return <ChannelTypeIcon type={type} className="inbox-channel-logo" />;
 }
 
 function getLatestMessage(conversation: InboxConversation) {
@@ -93,6 +97,77 @@ function avatarTone(value: string) {
   return `tone-${seed % 6}`;
 }
 
+function getStatusForConversation(conversation: InboxConversation): InboxStatus {
+  if (conversation.state === 'processing') return 'processing';
+  return conversation.closedReason === 'ai_resolved' ? 'resolved' : 'ended';
+}
+
+function toDateParam(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function getDateRange(preset: DateFilterPreset, customStart: string, customEnd: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (preset === 'custom') {
+    if (!customStart || !customEnd) return null;
+    return customStart <= customEnd ? { start: customStart, end: customEnd } : { start: customEnd, end: customStart };
+  }
+  if (preset === 'today') return { start: toDateParam(today), end: toDateParam(today) };
+  if (preset === 'yesterday') {
+    const yesterday = addDays(today, -1);
+    return { start: toDateParam(yesterday), end: toDateParam(yesterday) };
+  }
+  if (preset === 'last7') return { start: toDateParam(addDays(today, -6)), end: toDateParam(today) };
+  return { start: toDateParam(addDays(today, -29)), end: toDateParam(today) };
+}
+
+function isDateWithinRange(value: string, range: { start: string; end: string }) {
+  const date = new Date(value);
+  const start = new Date(`${range.start}T00:00:00`);
+  const end = new Date(`${range.end}T23:59:59.999`);
+  return date >= start && date <= end;
+}
+
+
+function parseDateParam(value: string) {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function getMonthCells(monthDate: Date) {
+  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const start = new Date(first);
+  const mondayIndex = (first.getDay() + 6) % 7;
+  start.setDate(first.getDate() - mondayIndex);
+  return Array.from({ length: 42 }, (_, index) => addDays(start, index));
+}
+
+function formatMonthTitle(date: Date) {
+  return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(date);
+}
+
+function isSameDateValue(left: string, right: string) {
+  return Boolean(left && right && left === right);
+}
+
+function isDateBetween(value: string, start: string, end: string) {
+  if (!start || !end) return false;
+  const range = start <= end ? { start, end } : { start: end, end: start };
+  return value > range.start && value < range.end;
+}
+
 function ListSkeleton() {
   return <div className="inbox-list-skeleton" aria-label="会话列表加载中">
     {Array.from({ length: 6 }).map((_, index) => <div className="inbox-skeleton-row" key={index}>
@@ -112,6 +187,17 @@ function MessageSkeleton() {
 
 export function InboxPage() {
   const { state } = useAppStore();
+  const allConversations = useMemo(() => [...state.channelConversations, ...inboxConversations], [state.channelConversations]);
+  const agentOptions = useMemo(() => {
+    const values = new Map<string, { id: string; name: string }>(inboxAgents.map((item) => [item.id, { id: item.id, name: item.name }]));
+    state.channelConversations.forEach((item) => values.set(item.agentId, { id: item.agentId, name: item.agentName }));
+    return [...values.values()];
+  }, [state.channelConversations]);
+  const channelOptions = useMemo(() => {
+    const values = new Map<string, { id: string; name: string; type: InboxChannelType }>(inboxChannels.map((item) => [item.id, { id: item.id, name: item.name, type: item.type as InboxChannelType }]));
+    state.channelConversations.forEach((item) => values.set(item.channelId, { id: item.channelId, name: item.channelName, type: item.channelType }));
+    return [...values.values()];
+  }, [state.channelConversations]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [processingExpanded, setProcessingExpanded] = useState(true);
   const [listState, setListState] = useState<LoadState>('loading');
@@ -123,12 +209,18 @@ export function InboxPage() {
   const [draftAgentIds, setDraftAgentIds] = useState<string[]>([]);
   const [draftChannelIds, setDraftChannelIds] = useState<string[]>([]);
   const [filterKeyword, setFilterKeyword] = useState('');
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
+  const [rangeAnchor, setRangeAnchor] = useState('');
   const [messageEdge, setMessageEdge] = useState({ top: false, bottom: false });
   const conversationRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
 
-  const status = isInboxStatus(searchParams.get('status')) ? searchParams.get('status') as InboxStatus : 'processing';
+  const requestedStatus = searchParams.get('status');
+  const status = isInboxStatus(requestedStatus) ? requestedStatus : 'processing';
   const navAgentId = searchParams.get('agent') ?? '';
+  const datePreset = isDateFilterPreset(searchParams.get('datePreset')) ? searchParams.get('datePreset') as DateFilterPreset : '';
+  const dateStart = searchParams.get('dateStart') ?? '';
+  const dateEnd = searchParams.get('dateEnd') ?? '';
   const filterAgentIds = useMemo(() => searchParams.getAll('filterAgent'), [searchParams]);
   const channelIds = useMemo(() => searchParams.getAll('channel'), [searchParams]);
   const keyword = searchParams.get('q') ?? '';
@@ -145,21 +237,34 @@ export function InboxPage() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  const dateRange = useMemo(() => status === 'processing' || !datePreset ? null : getDateRange(datePreset, dateStart, dateEnd), [dateEnd, datePreset, dateStart, status]);
   const appliedFilterTypes = useMemo<FilterType[]>(() => [
+    ...(datePreset && status !== 'processing' ? ['date' as const] : []),
     ...(filterAgentIds.length ? ['agent' as const] : []),
     ...(channelIds.length ? ['channel' as const] : []),
-  ], [filterAgentIds, channelIds]);
+  ], [channelIds, datePreset, filterAgentIds, status]);
   const agentFilterKey = filterAgentIds.join('|');
   const channelFilterKey = channelIds.join('|');
+  const dateFilterKey = `${datePreset}|${dateStart}|${dateEnd}`;
 
   useEffect(() => {
     setDraftAgentIds(filterAgentIds);
     setDraftChannelIds(channelIds);
     setDraftFilterTypes(appliedFilterTypes);
-  }, [agentFilterKey, channelFilterKey, filterAgentIds, appliedFilterTypes, channelIds]);
+  }, [agentFilterKey, channelFilterKey, dateFilterKey, filterAgentIds, appliedFilterTypes, channelIds]);
+
+  useEffect(() => {
+    if (datePreset !== 'custom') {
+      setRangeAnchor('');
+      return;
+    }
+    const anchorDate = parseDateParam(dateStart || dateEnd);
+    if (anchorDate) setCalendarMonth(new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1));
+  }, [dateEnd, datePreset, dateStart]);
 
   const visibleFilterCount = appliedFilterTypes.length;
-  const syncedAgents = useMemo(() => Object.fromEntries(inboxAgents.map((agent) => [agent.id, resolveInboxAgent(state.agents, agent)])), [state.agents]);
+  const availableFilterTypeCount = status === 'processing' ? 2 : 3;
+  const syncedAgents = useMemo(() => Object.fromEntries(agentOptions.map((agent) => [agent.id, resolveInboxAgent(state.agents, agent)])), [agentOptions, state.agents]);
 
   useEffect(() => {
     if (!pendingFilter || !draftFilterTypes.includes(pendingFilter)) return;
@@ -178,44 +283,50 @@ export function InboxPage() {
   }, [demoState]);
 
   const statusCounts = useMemo(() => ({
-    processing: inboxConversations.filter((item) => item.state === 'processing').length,
-    resolved: inboxConversations.filter((item) => item.closedReason === 'ai_resolved').length,
-    ended: inboxConversations.filter((item) => item.state === 'closed').length,
-    all: inboxConversations.length,
-  }), []);
+    processing: allConversations.filter((item) => item.state === 'processing').length,
+    resolved: allConversations.filter((item) => item.closedReason === 'ai_resolved').length,
+    ended: allConversations.filter((item) => item.state === 'closed').length,
+  }), [allConversations]);
 
-  const agentCounts = useMemo(() => Object.fromEntries(inboxAgents.map((agent) => [
+  const agentCounts = useMemo(() => Object.fromEntries(agentOptions.map((agent) => [
     agent.id,
-    inboxConversations.filter((item) => item.state === 'processing' && item.agentId === agent.id).length,
-  ])), []);
+    allConversations.filter((item) => item.state === 'processing' && item.agentId === agent.id).length,
+  ])), [agentOptions, allConversations]);
 
   const filteredConversations = useMemo(() => {
     if (demoState === 'empty') return [];
     const normalizedKeyword = keyword.trim().toLocaleLowerCase();
-    return inboxConversations
+    return allConversations
       .filter((item) => {
         if (status === 'processing' && item.state !== 'processing') return false;
         if (status === 'resolved' && item.closedReason !== 'ai_resolved') return false;
         if (status === 'ended' && item.state !== 'closed') return false;
         if (status === 'processing' && navAgentId && item.agentId !== navAgentId) return false;
+        if (dateRange && !isDateWithinRange(item.createdAt, dateRange)) return false;
         if (filterAgentIds.length && !filterAgentIds.includes(item.agentId)) return false;
         if (channelIds.length && !channelIds.includes(item.channelId)) return false;
         if (normalizedKeyword && !item.messages.some((message) => message.role !== 'system' && message.content.toLocaleLowerCase().includes(normalizedKeyword))) return false;
         return true;
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [channelIds, demoState, filterAgentIds, keyword, navAgentId, status]);
+  }, [allConversations, channelIds, dateRange, demoState, filterAgentIds, keyword, navAgentId, status]);
+
+  const selectedConversation = useMemo(() => allConversations.find((item) => item.id === selectedId) ?? null, [allConversations, selectedId]);
 
   useEffect(() => {
+    if (!requestedStatus || isInboxStatus(requestedStatus)) return;
+    updateParams({ status: selectedConversation ? getStatusForConversation(selectedConversation) : 'processing', agent: null });
+  }, [requestedStatus, selectedConversation, updateParams]);
+
+  useEffect(() => {
+    if (requestedStatus && !isInboxStatus(requestedStatus)) return;
     if (listState !== 'ready') return;
     if (!filteredConversations.length) {
       if (selectedId) updateParams({ conversation: null });
       return;
     }
     if (!filteredConversations.some((item) => item.id === selectedId)) updateParams({ conversation: filteredConversations[0].id });
-  }, [filteredConversations, listState, selectedId, updateParams]);
-
-  const selectedConversation = useMemo(() => inboxConversations.find((item) => item.id === selectedId) ?? null, [selectedId]);
+  }, [filteredConversations, listState, requestedStatus, selectedId, updateParams]);
 
   const updateMessageEdge = useCallback(() => {
     const viewport = messageViewportRef.current;
@@ -250,20 +361,20 @@ export function InboxPage() {
 
   const history = useMemo(() => {
     if (!selectedConversation) return [];
-    return inboxConversations
+    return allConversations
       .filter((item) => item.visitorId === selectedConversation.visitorId && item.channelId === selectedConversation.channelId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [selectedConversation]);
+  }, [allConversations, selectedConversation]);
   const historyIndex = history.findIndex((item) => item.id === selectedId);
   const canSwitchHistory = history.length > 1 && historyIndex >= 0;
   const previousHistoryConversation = canSwitchHistory ? history[(historyIndex - 1 + history.length) % history.length] : undefined;
   const nextHistoryConversation = canSwitchHistory ? history[(historyIndex + 1) % history.length] : undefined;
 
-  const selectStatus = (nextStatus: InboxStatus) => updateParams({ status: nextStatus, agent: null, conversation: null });
+  const selectStatus = (nextStatus: InboxStatus) => updateParams({ status: nextStatus, agent: null, conversation: null, ...(nextStatus === 'processing' ? { datePreset: null, dateStart: null, dateEnd: null } : {}) });
   const selectConversation = (id: string) => updateParams({ conversation: id });
   const switchHistory = (target: InboxConversation | undefined) => {
     if (!target) return;
-    updateParams({ status: 'all', agent: null, filterAgent: null, channel: null, q: null, conversation: target.id });
+    updateParams({ status: getStatusForConversation(target), agent: null, filterAgent: null, channel: null, q: null, conversation: target.id });
   };
   const retryList = () => updateParams({ demo: null });
   const retryMessages = () => updateParams({ demo: null });
@@ -280,6 +391,7 @@ export function InboxPage() {
       const nextAgentIds = update(draftAgentIds);
       setDraftAgentIds(nextAgentIds);
       setDraftFilterTypes([
+        ...(datePreset && status !== 'processing' ? ['date' as const] : []),
         ...(nextAgentIds.length ? ['agent' as const] : []),
         ...(draftChannelIds.length ? ['channel' as const] : []),
       ]);
@@ -288,6 +400,7 @@ export function InboxPage() {
       const nextChannelIds = update(draftChannelIds);
       setDraftChannelIds(nextChannelIds);
       setDraftFilterTypes([
+        ...(datePreset && status !== 'processing' ? ['date' as const] : []),
         ...(draftAgentIds.length ? ['agent' as const] : []),
         ...(nextChannelIds.length ? ['channel' as const] : []),
       ]);
@@ -299,6 +412,8 @@ export function InboxPage() {
     if (type === 'agent') {
       setDraftAgentIds([]);
       updateParams({ filterAgent: null, conversation: null });
+    } else if (type === 'date') {
+      updateParams({ datePreset: null, dateStart: null, dateEnd: null, conversation: null });
     } else {
       setDraftChannelIds([]);
       updateParams({ channel: null, conversation: null });
@@ -311,17 +426,73 @@ export function InboxPage() {
     setDraftChannelIds([]);
     setFilterMenuOpen(false);
     setActiveFilter(null);
-    updateParams({ filterAgent: null, channel: null, conversation: null });
+    updateParams({ datePreset: null, dateStart: null, dateEnd: null, filterAgent: null, channel: null, conversation: null });
   };
   const getFilterLabel = (type: FilterType) => {
+    if (type === 'date') {
+      if (!datePreset) return '日期';
+      if (datePreset === 'custom' && dateStart && dateEnd) return `${dateStart} 至 ${dateEnd}`;
+      return dateFilterOptions.find((item) => item.key === datePreset)?.label ?? '日期';
+    }
     const values = type === 'agent' ? draftAgentIds : draftChannelIds;
-    const options = type === 'agent' ? inboxAgents : inboxChannels;
-    if (!values.length) return type === 'agent' ? 'AI Agent' : 'Channel';
-    if (values.length === 1) return options.find((item) => item.id === values[0])?.name ?? (type === 'agent' ? 'AI Agent' : 'Channel');
-    return `${type === 'agent' ? 'AI Agent' : 'Channel'} ${values.length}`;
+    const options = type === 'agent' ? agentOptions : channelOptions;
+    if (!values.length) return type === 'agent' ? 'AI Agent' : '渠道';
+    if (values.length === 1) return options.find((item) => item.id === values[0])?.name ?? (type === 'agent' ? 'AI Agent' : '渠道');
+    return `${type === 'agent' ? 'AI Agent' : '渠道'} ${values.length}`;
   };
   const renderFilterPicker = (type: FilterType) => {
-    const options = type === 'agent' ? inboxAgents : inboxChannels;
+    if (type === 'date') {
+      const monthCells = getMonthCells(calendarMonth);
+      const selectDatePreset = (preset: DateFilterPreset) => {
+        setRangeAnchor('');
+        if (preset === 'custom') {
+          const anchorDate = parseDateParam(dateStart || dateEnd) ?? new Date();
+          setCalendarMonth(new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1));
+          updateParams({ datePreset: preset, conversation: null });
+          return;
+        }
+        updateParams({ datePreset: preset, dateStart: null, dateEnd: null, conversation: null });
+      };
+      const selectCalendarDate = (date: Date) => {
+        const value = toDateParam(date);
+        if (datePreset !== 'custom') updateParams({ datePreset: 'custom', dateStart: value, dateEnd: null, conversation: null });
+        else if (!rangeAnchor || (dateStart && dateEnd)) updateParams({ datePreset: 'custom', dateStart: value, dateEnd: null, conversation: null });
+        else updateParams({ datePreset: 'custom', dateStart: rangeAnchor <= value ? rangeAnchor : value, dateEnd: rangeAnchor <= value ? value : rangeAnchor, conversation: null });
+        setRangeAnchor(datePreset !== 'custom' || !rangeAnchor || (dateStart && dateEnd) ? value : '');
+      };
+      const jumpMonth = (months: number) => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + months, 1));
+      return <div className={`inbox-filter-picker inbox-date-filter-picker ${datePreset === 'custom' ? 'has-calendar' : ''}`}>
+        <div className="inbox-date-filter-options">
+          {dateFilterOptions.map((item) => <button type="button" className={`inbox-date-filter-option ${datePreset === item.key ? 'is-selected' : ''}`} key={item.key} onClick={() => selectDatePreset(item.key)}>
+            <span>{item.label}</span>{datePreset === item.key && <IconCheck />}
+          </button>)}
+        </div>
+        {datePreset === 'custom' && <div className="inbox-calendar-panel">
+          <div className="inbox-calendar-header">
+            <button type="button" aria-label="上一年" onClick={() => jumpMonth(-12)}><IconDoubleLeft /></button>
+            <button type="button" aria-label="上一月" onClick={() => jumpMonth(-1)}><IconLeft /></button>
+            <strong>{formatMonthTitle(calendarMonth)}</strong>
+            <button type="button" aria-label="下一月" onClick={() => jumpMonth(1)}><IconRight /></button>
+            <button type="button" aria-label="下一年" onClick={() => jumpMonth(12)}><IconDoubleRight /></button>
+          </div>
+          <div className="inbox-calendar-weekdays">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div>
+          <div className="inbox-calendar-grid">
+            {monthCells.map((date) => {
+              const value = toDateParam(date);
+              const outside = date.getMonth() !== calendarMonth.getMonth();
+              const rangeStart = isSameDateValue(value, dateStart);
+              const rangeEnd = isSameDateValue(value, dateEnd);
+              const inRange = isDateBetween(value, dateStart, dateEnd);
+              const pending = isSameDateValue(value, rangeAnchor) && datePreset === 'custom' && !dateEnd;
+              return <button type="button" key={value} className={`inbox-calendar-day ${outside ? 'is-outside' : ''} ${inRange ? 'is-in-range' : ''} ${rangeStart || rangeEnd || pending ? 'is-selected' : ''}`} onClick={() => selectCalendarDate(date)}>
+                <span>{date.getDate()}</span>
+              </button>;
+            })}
+          </div>
+        </div>}
+      </div>;
+    }
+    const options = type === 'agent' ? agentOptions : channelOptions;
     const values = type === 'agent' ? draftAgentIds : draftChannelIds;
     const normalized = filterKeyword.trim().toLocaleLowerCase();
     const visibleOptions = options.filter((item) => item.name.toLocaleLowerCase().includes(normalized));
@@ -333,6 +504,7 @@ export function InboxPage() {
       if (type === 'agent') {
         setDraftAgentIds(next);
         setDraftFilterTypes([
+          ...(datePreset && status !== 'processing' ? ['date' as const] : []),
           ...(next.length ? ['agent' as const] : []),
           ...(draftChannelIds.length ? ['channel' as const] : []),
         ]);
@@ -340,6 +512,7 @@ export function InboxPage() {
       } else {
         setDraftChannelIds(next);
         setDraftFilterTypes([
+          ...(datePreset && status !== 'processing' ? ['date' as const] : []),
           ...(draftAgentIds.length ? ['agent' as const] : []),
           ...(next.length ? ['channel' as const] : []),
         ]);
@@ -356,7 +529,7 @@ export function InboxPage() {
           const selected = values.includes(item.id);
           const syncedAgent = type === 'agent' ? syncedAgents[item.id] : undefined;
           return <button type="button" className={`inbox-filter-option ${selected ? 'is-selected' : ''}`} key={item.id} onClick={() => toggleFilterValue(type, item.id)}>
-            <span className={type === 'agent' ? 'inbox-filter-agent-avatar' : 'inbox-filter-channel-icon'}>{type === 'agent' ? <SyncedAgentAvatar agent={syncedAgent} /> : <ChannelLogo type={inboxChannels.find((channel) => channel.id === item.id)?.type ?? 'livechat'} />}</span>
+            <span className={type === 'agent' ? 'inbox-filter-agent-avatar' : 'inbox-filter-channel-icon'}>{type === 'agent' ? <SyncedAgentAvatar agent={syncedAgent} /> : <ChannelLogo type={channelOptions.find((channel) => channel.id === item.id)?.type ?? 'livechat'} />}</span>
             <span className="inbox-filter-option-name">{item.name}</span>
             {selected && <IconCheck />}
           </button>;
@@ -366,17 +539,15 @@ export function InboxPage() {
     </div>;
   };
 
-  const emptyText = keyword || filterAgentIds.length || channelIds.length
+  const hasActiveDateFilter = status !== 'processing' && Boolean(datePreset);
+  const emptyText = keyword || hasActiveDateFilter || filterAgentIds.length || channelIds.length
     ? '没有符合筛选条件的会话'
     : status === 'processing'
       ? '暂无处理中会话'
       : status === 'resolved'
         ? '暂无已解决会话'
-        : status === 'ended'
-          ? '暂无已结束会话'
-          : '暂无会话';
-  const activeStatusLabel = statusItems.find((item) => item.key === status)?.label ?? '会话';
-  const listTitle = status === 'all' ? 'All chats' : activeStatusLabel;
+        : '暂无已结束会话';
+  const listTitle = statusItems.find((item) => item.key === status)?.label ?? '处理中';
   const selectedFooterText = selectedConversation?.state === 'processing'
     ? 'AI Agent 正在处理中'
     : selectedConversation?.closedReason === 'ai_resolved'
@@ -400,8 +571,8 @@ export function InboxPage() {
             {item.key === 'processing' && <button type="button" className="inbox-expand-button" aria-label={processingExpanded ? '收起 AI Agents' : '展开 AI Agents'} onClick={() => setProcessingExpanded((value) => !value)}><span className={`inbox-chevron ${processingExpanded ? 'is-expanded' : ''}`} /></button>}
           </div>
           {item.key === 'processing' && processingExpanded && <div className="inbox-agent-tree">
-            <button type="button" className={status === 'processing' && !navAgentId ? 'is-active' : ''} onClick={() => updateParams({ status: 'processing', agent: null, conversation: null })}><span>全部</span><span>{statusCounts.processing}</span></button>
-            {inboxAgents.map((agent) => <button type="button" className={status === 'processing' && navAgentId === agent.id ? 'is-active' : ''} key={agent.id} onClick={() => updateParams({ status: 'processing', agent: agent.id, conversation: null })}>
+            <button type="button" className={status === 'processing' && !navAgentId ? 'is-active' : ''} onClick={() => updateParams({ status: 'processing', agent: null, datePreset: null, dateStart: null, dateEnd: null, conversation: null })}><span>全部</span><span>{statusCounts.processing}</span></button>
+            {agentOptions.map((agent) => <button type="button" className={status === 'processing' && navAgentId === agent.id ? 'is-active' : ''} key={agent.id} onClick={() => updateParams({ status: 'processing', agent: agent.id, datePreset: null, dateStart: null, dateEnd: null, conversation: null })}>
               <span className="inbox-agent-nav-copy"><span className="inbox-agent-nav-avatar"><SyncedAgentAvatar agent={syncedAgents[agent.id]} /></span><span>{agent.name}</span></span>
               <span>{agentCounts[agent.id]}</span>
             </button>)}
@@ -421,13 +592,14 @@ export function InboxPage() {
                 onVisibleChange={(visible: boolean) => { setFilterMenuOpen(visible); if (visible) setActiveFilter(null); }}
                 triggerProps={{ autoFitPosition: true, boundaryDistance: { right: 12, bottom: 12 } }}
                 content={<div className="inbox-filter-category-menu">
+                  {status !== 'processing' && !draftFilterTypes.includes('date') && <button type="button" onClick={() => chooseFilterType('date')}><IconCalendar /><span>日期</span></button>}
                   {!draftFilterTypes.includes('agent') && <button type="button" onClick={() => chooseFilterType('agent')}><IconRobot /><span>AI Agent</span></button>}
-                  {!draftFilterTypes.includes('channel') && <button type="button" onClick={() => chooseFilterType('channel')}><IconMessage /><span>Channel</span></button>}
-                  {draftFilterTypes.length === 2 && <span className="inbox-filter-all-added">所有筛选条件已添加</span>}
+                  {!draftFilterTypes.includes('channel') && <button type="button" onClick={() => chooseFilterType('channel')}><IconMessage /><span>渠道</span></button>}
+                  {draftFilterTypes.length === availableFilterTypeCount && <span className="inbox-filter-all-added">所有筛选条件已添加</span>}
                 </div>}
               >
                 <button type="button" className={`inbox-filter-trigger ${visibleFilterCount ? 'is-active' : ''}`} aria-label="筛选会话">
-                  <IconFilter /><span>Filter</span>{visibleFilterCount > 0 && <b>{visibleFilterCount}</b>}
+                  <IconFilter /><span>筛选</span>{visibleFilterCount > 0 && <b>{visibleFilterCount}</b>}
                 </button>
               </Popover>
             </div>
@@ -447,8 +619,8 @@ export function InboxPage() {
               content={renderFilterPicker(type)}
             >
               <span className={`inbox-filter-chip ${activeFilter === type ? 'is-open' : ''}`}>
-                <button type="button" className="inbox-filter-chip-main" onClick={() => setActiveFilter(type)}>{type === 'agent' ? <IconRobot /> : <IconMessage />}<span>{getFilterLabel(type)}</span></button>
-                <button type="button" className="inbox-filter-chip-remove" aria-label={`移除 ${type === 'agent' ? 'AI Agent' : 'Channel'} 筛选`} onClick={(event) => { event.stopPropagation(); removeFilterType(type); }}><IconClose /></button>
+                <button type="button" className="inbox-filter-chip-main" onClick={() => setActiveFilter(type)}>{type === 'date' ? <IconCalendar /> : type === 'agent' ? <IconRobot /> : <IconMessage />}<span>{getFilterLabel(type)}</span></button>
+                <button type="button" className="inbox-filter-chip-remove" aria-label={`移除 ${type === 'date' ? '日期' : type === 'agent' ? 'AI Agent' : '渠道'} 筛选`} onClick={(event) => { event.stopPropagation(); removeFilterType(type); }}><IconClose /></button>
               </span>
             </Popover>)}
           </div>}
@@ -457,7 +629,7 @@ export function InboxPage() {
         <div className="inbox-conversation-list">
           {listState === 'loading' && <ListSkeleton />}
           {listState === 'error' && <div className="inbox-centered-state"><IconExclamationCircle /><strong>会话加载失败</strong><span>请检查网络后重新加载</span><Button type="primary" icon={<IconRefresh />} onClick={retryList}>重新加载</Button></div>}
-          {listState === 'ready' && !filteredConversations.length && <div className="inbox-centered-state"><Empty description={emptyText}>{(filterAgentIds.length > 0 || channelIds.length > 0) && <Button type="text" onClick={clearAppliedFilters}>重置筛选</Button>}</Empty></div>}
+          {listState === 'ready' && !filteredConversations.length && <div className="inbox-centered-state"><Empty description={emptyText}>{(hasActiveDateFilter || filterAgentIds.length > 0 || channelIds.length > 0) && <Button type="text" onClick={clearAppliedFilters}>重置筛选</Button>}</Empty></div>}
           {listState === 'ready' && filteredConversations.map((conversation) => <button
             type="button"
             key={conversation.id}
@@ -496,9 +668,15 @@ export function InboxPage() {
                     <span className="inbox-message-author">{message.role === 'agent' ? selectedConversation.agentName : selectedConversation.customerName}</span>
                     {message.type === 'image'
                       ? <figure className="inbox-message-image-card">
-                          {message.imageUrl && <img src={message.imageUrl} alt={message.content} />}
+                          {(message.fileUrl || message.imageUrl) && <img src={message.fileUrl || message.imageUrl} alt={message.content} />}
                           <figcaption>{message.content}</figcaption>
                         </figure>
+                      : message.type === 'video' && message.fileUrl
+                        ? <video className="inbox-message-media" src={message.fileUrl} controls />
+                        : message.type === 'audio' && message.fileUrl
+                          ? <audio className="inbox-message-audio" src={message.fileUrl} controls />
+                          : message.type === 'file'
+                            ? <div className="inbox-message-file"><span className="inbox-message-file-icon"><IconFile /></span><span>{message.fileUrl ? <a href={message.fileUrl} download={message.fileName || message.content}>{message.fileName || message.content}</a> : <strong>{message.fileName || message.content}</strong>}<small>{message.fileSize ? `${Math.ceil(message.fileSize / 1024)} KB` : ''}</small></span></div>
                       : <div className="inbox-message-bubble">{message.content}</div>}
                     <time>{formatMessageTime(message.sentAt)}</time>
                   </div>
@@ -507,9 +685,7 @@ export function InboxPage() {
               {nextHistoryConversation && messageEdge.bottom && <button type="button" className="inbox-thread-jump is-bottom" onClick={() => switchHistory(nextHistoryConversation)}><IconArrowDown /> 下一个会话</button>}
             </>}
           </div>
-          <footer className="inbox-detail-footer">
-            <span>{selectedFooterText}</span>
-          </footer>
+          <footer className="inbox-detail-footer"><span>{selectedFooterText}</span></footer>
         </>}
       </section>
     </div>

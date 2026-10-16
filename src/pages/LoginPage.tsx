@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconLock, IconUser } from '@arco-design/web-react/icon';
@@ -24,8 +24,6 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<LoginErrors>({});
   const [submitting, setSubmitting] = useState(false);
-  const currentYear = useMemo(() => new Date().getFullYear(), []);
-
   const validate = () => {
     const next: LoginErrors = {};
     if (!username.trim()) next.username = t('usernameRequired');
@@ -104,7 +102,6 @@ export function LoginPage() {
         </label>
         {errors.submit && <div className="login-submit-error" role="alert">{errors.submit}</div>}
         <Button className="login-submit" type="primary" htmlType="submit" size="large" loading={submitting} disabled={submitting}>{t('login')}</Button>
-        <div className="login-footer">© {currentYear} IM Support</div>
       </form>
     </section>
   </main>;

@@ -9,7 +9,7 @@ export const LANGUAGE_LABELS: Record<AppLanguage, string> = {
 const dictionary = {
   'zh-CN': {
     loginTitle: '欢迎登录',
-    loginSubtitle: '客户支持智能体管理平台',
+    loginSubtitle: '在线聊天与 AI Agent 一体化客户服务平台',
     username: '用户名',
     password: '密码',
     usernamePlaceholder: '请输入用户名',
@@ -54,7 +54,7 @@ const dictionary = {
   },
   'en-US': {
     loginTitle: 'Welcome back',
-    loginSubtitle: 'Customer support AI management platform',
+    loginSubtitle: 'Integrated customer service platform for live chat and AI Agents',
     username: 'Username',
     password: 'Password',
     usernamePlaceholder: 'Enter username',

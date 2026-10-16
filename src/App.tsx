@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
 import { Avatar, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, InputNumber, Menu, Modal, Popconfirm, Radio, Row, Select, Space, Switch, Table, Tag, Message, Tooltip } from './components/ui';
 import { IconArrowLeft, IconCopy, IconDelete, IconEdit, IconEye, IconImage, IconLink, IconMore, IconPlus, IconRefresh, IconRobot, IconSave, IconSend, IconThunderbolt, IconUpload } from '@arco-design/web-react/icon';
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { BroomIcon } from './components/BroomIcon';
 import { KnowledgePageV2, SkillsPageV2 } from './pages/ModulePages';
@@ -18,6 +18,7 @@ import { OpsTenantManagementPage } from './pages/OpsTenantManagementPage';
 import { TeamDetailPage, TeamsPage } from './pages/TeamsPage';
 import { KnowledgeSectionV2 } from './pages/DetailSections';
 import { InboxPage } from './pages/InboxPage';
+import { ChannelClientPage } from './pages/ChannelClientPage';
 import { RichTextEditor } from './components/RichTextEditor';
 import { AppProvider, updateFlow, updateGuards, useAppStore } from './store';
 import { now } from './mockData';
@@ -269,6 +270,9 @@ function ShellRoutes() {
 
 function AppRoutes() {
   const { state } = useAppStore();
+  const location = useLocation();
+  const publicRoutes = <><Route path="/widget/:channelId" element={<ChannelClientPage type="web-widget" />} /><Route path="/chat/:channelId" element={<ChannelClientPage type="chat-page" />} /></>;
+  if (location.pathname.startsWith('/widget/') || location.pathname.startsWith('/chat/')) return <Routes>{publicRoutes}<Route path="*" element={<Navigate to="/login" replace />} /></Routes>;
   if (!state.session) return <Routes><Route path="/login" element={<LoginPage />} /><Route path="*" element={<Navigate to="/login" replace />} /></Routes>;
   return <Routes><Route path="/login" element={<Navigate to="/inbox" replace />} /><Route path="/agents/:id/:section" element={<AgentDetailPage />} /><Route path="/workflows/:id" element={<WorkflowEditorPage />} /><Route path="*" element={<ShellRoutes />} /></Routes>;
 }

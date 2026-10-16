@@ -123,7 +123,7 @@ export interface Skill {
   updatedAt: string;
 }
 
-export type ChannelType = 'livechat' | 'telegram';
+export type ChannelType = 'web-widget' | 'livechat' | 'telegram' | 'chat-page';
 
 export interface Channel {
   id: string;
@@ -135,6 +135,28 @@ export interface Channel {
   accessToken?: string;
   botToken?: string;
   webhookUrl?: string;
+  language?: string;
+  websiteDomain?: string;
+  allowedDomains?: string[];
+  installCode?: string;
+  installStatus?: 'unchecked' | 'success' | 'failed';
+  installCheckedAt?: string;
+  chatPageUrl?: string;
+  brandName?: string;
+  brandSignature?: string;
+  brandAvatar?: string;
+  themeColor?: string;
+  widgetIcon?: 'message' | 'message-dark' | 'message-line' | 'robot' | 'support' | 'custom';
+  widgetCustomIcon?: string;
+  widgetPosition?: 'bottom-left' | 'bottom-right';
+  widgetOffsetX?: number;
+  widgetOffsetY?: number;
+  widgetDesktopVisible?: boolean;
+  widgetMobileVisible?: boolean;
+  widgetMobilePosition?: 'bottom-left' | 'bottom-right';
+  widgetMobileOffsetX?: number;
+  widgetMobileOffsetY?: number;
+  soundEnabled?: boolean;
   receiveGroups?: string[];
   humanGroups?: string[];
   opening?: string;
@@ -160,15 +182,19 @@ export interface Session {
 
 export type InboxConversationState = 'processing' | 'closed';
 export type InboxClosedReason = 'ai_resolved' | 'human_handoff' | 'timeout' | null;
-export type InboxChannelType = 'livechat' | 'telegram';
+export type InboxChannelType = 'livechat' | 'telegram' | 'web-widget' | 'chat-page';
 export type InboxMessageRole = 'customer' | 'agent' | 'system';
 
 export interface InboxMessage {
   id: string;
   role: InboxMessageRole;
   content: string;
-  type?: 'text' | 'image';
+  type?: 'text' | 'image' | 'video' | 'audio' | 'file';
   imageUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
   sentAt: string;
 }
 
@@ -195,11 +221,13 @@ export interface AppState {
   workflows: import('./workflows/model').Workflow[];
   workflowExamplesVersion?: number;
   demoDataVersion?: number;
+  channelDemoVersion?: number;
   agents: Agent[];
   teams: Team[];
   documents: KnowledgeDocument[];
   skills: Skill[];
   channels: Channel[];
+  channelConversations: InboxConversation[];
   sessions: Session[];
   members: TenantMember[];
   roles: TenantRole[];
