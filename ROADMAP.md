@@ -1,3 +1,10 @@
+## 2026-10-20 个人 GitHub 仓库同步与 Pages 部署（已完成）
+
+- 将当前代码从组织仓库同步到个人仓库 `lukewen111/Lingxi-Agent_demo`，个人仓库从 `19461e3` 快进至 `f2940f3`；保留原组织仓库 `origin`，新增 `personal` 远程。
+- 个人仓库已按用户确认改为公开，并启用 GitHub Pages 的 GitHub Actions 构建来源；站点地址为 `https://lukewen111.github.io/Lingxi-Agent_demo/`。
+- GitHub Actions 工作流 `Deploy GitHub Pages` 重新运行成功，构建与部署任务均通过；站点 HTTP 状态码为 200。
+- 部署日志仅有 GitHub Actions 使用 Node.js 20 运行时的弃用提示，不影响本次部署；本地临时目录未提交。
+
 ## 2026-10-20 新增渠道 PRD 字段边界补全（已完成）
 
 - 将 `prd/web_widget_chat_page_v4_prd.md` 更新为 V4.1，补充渠道名称、品牌名称、签名、域名、允许域名、品牌图片、客户消息及附件文件名的长度、数量、格式、尺寸与超限处理规则。
