@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button, Dropdown, Empty, Input, InputNumber, Menu, Message, Modal, Switch, Table } from '../components/ui';
-import { IconArrowLeft, IconCopy, IconExclamationCircle, IconMore, IconNotification, IconNotificationClose, IconPlus, IconRobot, IconSearch, IconSend, IconUpload } from '@arco-design/web-react/icon';
+import { IconArrowLeft, IconCopy, IconExclamationCircle, IconLaunch, IconMore, IconNotification, IconNotificationClose, IconPlus, IconRobot, IconSearch, IconSend, IconUpload } from '@arco-design/web-react/icon';
 import { now } from '../mockData';
 import { useAppStore } from '../store';
 import type { Agent, Channel, ChannelType } from '../types';
@@ -303,7 +303,12 @@ function ChannelTypePage({ type, routeMode, routeChannelId }: { type: ChannelTyp
   return <section className="channels-panel">{feedback && <div className={`channel-feedback-toast is-${feedback.type}`} role="status" aria-live="polite">{feedback.text}</div>}<div className="channels-panel-header"><h1>{channelMeta[type].title}</h1><Button className="channel-add-button" type="primary" onClick={() => setConfigModal({ mode: 'create' })}><span><IconPlus />{addLabel(type)}</span></Button></div>
     <div className="channel-list-content">{channels.length > 0 && <div className="channel-list-toolbar"><Input prefix={<IconSearch />} value={query} onChange={setQuery} placeholder="搜索渠道名称" allowClear /></div>}
     {hasSearchResult ? <Table rowKey="id" dataSource={filteredChannels} pagination={{ pageSize: 20, showTotal: true }} columns={[
-      { title: '渠道名称', dataIndex: 'name', render: (value: string, item: Channel) => <button type="button" className={`channel-name-cell${modernChannelTypes.includes(type) ? ' is-link' : ''}`} onClick={() => modernChannelTypes.includes(type) && navigate(pathFor(type, `/${item.id}`))}><ChannelLogo type={type} /><div><strong>{value}</strong></div></button> },
+      { title: '渠道名称', dataIndex: 'name', render: (value: string, item: Channel) => {
+        const openDetail = () => modernChannelTypes.includes(type) && navigate(pathFor(type, `/${item.id}`));
+        if (type !== 'web-widget') return <button type="button" className={`channel-name-cell${modernChannelTypes.includes(type) ? ' is-link' : ''}`} onClick={openDetail}><ChannelLogo type={type} /><div><strong title={value}>{value}</strong></div></button>;
+        const domain = parseWebsiteDomain(item.websiteDomain ?? '').domain;
+        return <div className="channel-website-cell"><ChannelLogo type={type} /><div className="channel-website-copy"><button type="button" className="channel-name-cell is-link" onClick={openDetail}><strong title={value}>{value}</strong></button>{domain && <div className="channel-website-domain"><span title={domain}>{domain}</span><a href={`https://${domain}`} target="_blank" rel="noopener noreferrer" title="访问网站" aria-label={`访问网站 ${domain}`}><IconLaunch /></a></div>}</div></div>;
+      } },
       { title: '接待 AI Agent', dataIndex: 'agentId', render: (value?: string) => <AgentCell agent={getAgent(state.agents, value)} /> },
       { title: '创建时间', dataIndex: 'createdAt', render: (value?: string) => <span className="channel-created-at">{formatDate(value)}</span> },
       ...(type === 'web-widget' ? [{ title: '状态', dataIndex: 'installStatus', width: 96, render: (value?: Channel['installStatus']) => <span className={`channel-install-status ${value === 'success' ? 'is-connected' : 'is-unconnected'}`}>{value === 'success' ? '已连接' : '未连接'}</span> }] : []),
@@ -723,7 +728,7 @@ function BasicChannelSettings({ draft, agents, update, showWebsiteDomain, domain
     <label className="channel-field"><span>渠道名称</span><Input value={draft.name} onChange={(name) => update({ name })} /></label>
     {showWebsiteDomain && <label className="channel-field"><span>网站域名</span><Input value={draft.websiteDomain ?? ''} onChange={(websiteDomain) => { update({ websiteDomain }); setDomainError?.(''); }} onBlur={normalizeWebsiteDomain} status={domainError ? 'error' : undefined} placeholder="输入您的网站域名" />{domainError && <small className="channel-field-error" role="alert">{domainError}</small>}</label>}
     <label className="channel-field"><span>界面语言</span><ChannelOptionSelect value={draft.language ?? 'auto'} onChange={(language) => update({ language })} options={interfaceLanguageOptions} /></label>
-    <label className="channel-field"><span>接待 AI Agent</span><ChannelOptionSelect value={draft.agentId} placeholder="选择接待 AI Agent" onChange={(agentId) => update({ agentId })} options={availableAgents.map((agent) => ({ label: agent.name || '未命名', value: agent.id, agent }))} renderValue={(option) => option.agent ? <><AgentAvatar agent={option.agent} />{option.label}</> : option.label} renderOption={(option) => option.agent ? <><AgentAvatar agent={option.agent} /><span>{option.label}</span></> : option.label} /><small className="channel-field-tip">更换接待 AI Agent 仅对新会话生效。</small></label>
+    <label className="channel-field"><span>接待 AI Agent</span><ChannelOptionSelect value={draft.agentId} placeholder="选择接待 AI Agent" onChange={(agentId) => update({ agentId })} options={availableAgents.map((agent) => ({ label: agent.name || '未命名', value: agent.id, agent }))} renderValue={(option) => option.agent ? <><AgentAvatar agent={option.agent} />{option.label}</> : option.label} renderOption={(option) => option.agent ? <><AgentAvatar agent={option.agent} /><span>{option.label}</span></> : option.label} /></label>
   </>;
 }
 

@@ -626,6 +626,15 @@ select:focus-visible {
 button.channel-name-cell { padding: 0; color: inherit; text-align: left; background: transparent; border: 0; }
 button.channel-name-cell.is-link { cursor: pointer; }
 button.channel-name-cell.is-link:hover strong { color: var(--color-primary); }
+.channel-website-cell { display: inline-grid; max-width: min(320px, 100%); grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: var(--space-2); }
+.channel-website-cell > .channel-logo-icon { width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--radius-sm); }
+.channel-website-cell > .channel-logo-icon img, .channel-website-cell > .channel-logo-icon svg { width: 18px; height: 18px; }
+.channel-website-copy { display: grid; min-width: 0; gap: 3px; }
+.channel-website-copy .channel-name-cell { display: block; max-width: 100%; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.channel-website-domain { display: flex; min-width: 0; align-items: center; gap: var(--space-1); color: var(--color-muted-foreground); font-size: var(--font-size-small); }
+.channel-website-domain > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.channel-website-domain > a { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 20px; height: 20px; color: inherit; border-radius: var(--radius-sm); }
+.channel-website-domain > a:hover, .channel-website-domain > a:focus-visible { color: var(--color-primary); background: var(--color-primary-bg); }
 .modern-channel-detail { height: 100%; overflow: hidden; }
 .modern-channel-header { padding-left: var(--space-4); }
 .modern-channel-title { display: flex; min-width: 0; align-items: center; gap: var(--space-2); }
