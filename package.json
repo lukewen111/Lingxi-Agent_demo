@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@arco-design/web-react": "^2.66.15",
+    "@phosphor-icons/react": "^2.1.10",
+    "@remixicon/react": "^4.9.0",
     "@tiptap/react": "^3.27.3",
     "@tiptap/starter-kit": "^3.27.3",
     "@xyflow/react": "^12.11.6",

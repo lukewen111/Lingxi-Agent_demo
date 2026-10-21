@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconBranch, IconDelete, IconMore, IconPlus, IconRefresh, IconCheck, IconLoading } from '@arco-design/web-react/icon';
 import { Button, Checkbox, Dropdown, Empty, Form, Input, Menu, Message, Modal, Table, Tag, Tooltip } from '../components/ui';
 import { PageHeader } from '../components/PageHeader';
+import { AgentAvatar } from '../components/AgentAvatar';
 import { useAppStore } from '../store';
 import type { Agent } from '../types';
 import { makeWorkflow, snapshot, workflowStatus, hasChanges, validateWorkflow } from './model';
@@ -71,7 +72,7 @@ export function WorkflowsPage() {
     <Table rowKey="id" dataSource={flows} scroll={{ x: 870 }} pagination={{ current: Math.min(page, Math.max(1, Math.ceil(flows.length / 10))), pageSize: 10, total: flows.length, showTotal: true, onChange: setPage }} noDataElement={<Empty icon={<IconBranch />} description={query ? '未找到匹配的工作流' : '暂无工作流'}>{!query && <Button type="primary" onClick={() => setCreating(true)}>创建工作流</Button>}</Empty>} columns={[
       { title: '工作流名称', width: 240, render: (_: unknown, flow: Workflow) => <div className="wf-name-cell"><span className="wf-resource-icon"><IconBranch /></span><Tooltip title={flow.draft.name}><button className="wf-name-link" onClick={() => navigate(`/workflows/${flow.id}`)}>{flow.draft.name}</button></Tooltip></div> },
       { title: '状态', width: 100, render: (_: unknown, flow: Workflow) => <WorkflowStatus flow={flow} /> },
-      { title: '绑定 AI Agent', width: 190, render: (_: unknown, flow: Workflow) => { const agents = boundAgents(flow); return agents.length ? <Button type="text" className="wf-binding-link" onClick={() => setViewBindings(flow)}>{agents.length === 1 ? agents[0].name : `${agents.length} 个 AI Agent`}</Button> : <span className="wf-muted">未绑定</span>; } },
+      { title: '绑定 AI Agent', width: 190, render: (_: unknown, flow: Workflow) => { const agents = boundAgents(flow); return agents.length ? <Button type="text" className="wf-binding-link" onClick={() => setViewBindings(flow)}><span className="wf-binding-avatars">{agents.slice(0, 3).map((agent) => <AgentAvatar key={agent.id} agent={agent} />)}</span><span>{agents.length === 1 ? agents[0].name : `${agents.length} 个 AI Agent`}</span></Button> : <span className="wf-muted">未绑定</span>; } },
       { title: '创建人', dataIndex: 'creator', width: 100 },
       { title: '更新时间', dataIndex: 'updatedAt', width: 168, render: formatDate },
       { title: '操作', width: 72, fixed: 'right', render: (_: unknown, flow: Workflow) => <Dropdown trigger="click" droplist={<Menu>

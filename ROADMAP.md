@@ -1,3 +1,19 @@
+## 2026-10-21 语言切换图标改为地球图标（已完成）
+
+- 将登录页和个人中心中的语言切换入口改为截图同类的经纬线地球图标，移除原语言／书写图标；未改变语言切换逻辑和菜单文案。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx src/pages/LoginPage.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。
+
+## 2026-10-21 语言切换图标接入标准图标库（已完成）
+
+- 接入 `@remixicon/react`，将登录页和个人中心的语言切换图标替换为 Remix `RiGlobalLine`；同时保留 `@phosphor-icons/react` 作为第二优先级图标库。
+- 新增项目图标规范：后续图标按 Remix Icon → Phosphor Icons → 必要时自行绘制的顺序选择，不使用 Unicode 或 Emoji 替代已有库图标。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx src/pages/LoginPage.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。
+
+## 2026-10-20 语言入口图标统一（已完成）
+
+- 登录页语言切换入口和个人中心语言菜单统一使用 Arco `IconLanguage` 地球图标，替换原占位字符图标；未改变语言切换逻辑、文案和菜单布局。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx src/pages/LoginPage.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。
+
 ## 2026-10-20 个人 GitHub 仓库同步与 Pages 部署（已完成）
 
 - 将当前代码从组织仓库同步到个人仓库 `lukewen111/Lingxi-Agent_demo`，个人仓库从 `19461e3` 快进至 `f2940f3`；保留原组织仓库 `origin`，新增 `personal` 远程。
@@ -1545,3 +1561,60 @@ Phase 3：基于源力设计系统实现真实项目方式开发的前端产品�
 - 客户端按断点读取桌面端／移动端的小部件可见性、位置与边距；补齐发送中、离线失败、重试、附件校验、历史分批加载和新消息提示。
 - 客户端的附件错误、发送状态、未读提示及可访问按钮文案纳入界面语言映射；无法匹配的语言回退 English。
 - 验证通过：`npm run build`、`npx tsc --noEmit`、`git diff --check`；构建仅保留既有大包体积提示。
+
+## 2026-10-21 客服身份、头像裁切与 Livechat 接入配置优化（已完成）
+
+- 修复 AI Agent 与渠道客户端头像容器的非正方形图片展示，统一使用正方形容器、圆形裁切和 `object-fit: cover`。
+- 收件箱会话详情的客服侧名称与头像改为读取当前登录账号，不再固定显示 AI Agent 图标或泛化身份。
+- AI Agent 卡片更多菜单补充白色浮层边界与阴影，提升与卡片背景的层级区分。
+- 渠道模块的 Livechat 配置补齐 Account ID、Client ID、Webhook URL 与 Webhook 密钥，压缩字段说明并加入复制操作；创建时保持 Webhook 地址和渠道 ID 一致。
+- 验证通过：`npm run build`、`npx oxlint src/pages/ChannelsPage.tsx src/pages/InboxPage.tsx src/types.ts --max-warnings=0`；构建仅保留既有大包体积提示。
+## 2026-10-21 Livechat 配置弹窗信息密度优化（已完成）
+
+- 移除 Livechat 字段下的常驻帮助文案，仅在 Access Token、Account ID 和 Client ID 标签旁提供按需查看的说明。
+- 固定底部操作栏；渠道名称、Access Token、Account ID、Client ID 和接待 AI Agent 未填齐时，直接禁用创建／保存，不增加额外状态提示文案。
+- 验证通过：`npm run build`、`npx oxlint src/pages/ChannelsPage.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。
+## 2026-10-21 渠道与工作流 AI Agent 头像联动（已完成）
+
+- 抽取公共 AI Agent 头像组件，渠道列表和工作流绑定 AI Agent 列读取同一 `agent.avatar` 数据。
+- 工作流列表为单个绑定客服显示头像与名称，多个绑定客服显示头像组与数量。
+- 验证通过：`npm run build`、`npx oxlint src/components/AgentAvatar.tsx src/pages/ChannelsPage.tsx src/workflows/WorkflowPages.tsx --max-warnings=0`、`git diff --check`；列表均由统一的状态数据读取头像。
+
+## 2026-10-21 AI Agent 卡片头像正方形裁切修复（已完成）
+
+- AI Agent 卡片头像增加固定最小／最大宽高，避免纵向图片按原始比例撑开头像区域。
+- 图片使用绝对定位铺满圆形容器，并以 `object-fit: cover` 与居中定位裁切；在线状态点保持在图片上层。
+- 验证通过：`npm run build`。
+
+## 2026-10-21 AI Agent 详情头像裁切修复（已完成）
+
+- 修复 AI Agent 详情页头像上传控件被旧样式覆盖的问题；上传头像、详情预览及消息头像均使用固定正方形圆形裁切与 `object-fit: cover`。
+- 图标库统一方案已按用户要求撤回，项目恢复使用原有 Arco 图标；此前确认的语言切换地球图标保持不变。
+- 验证通过：`npm run build`、`git diff --check`。
+
+## 2026-10-21 收件箱筛选与登录语言图标对齐（已完成）
+
+- 收件箱筛选菜单与已选筛选标签中的「渠道」图标统一使用侧边栏同款图标。
+- 登录页语言切换沿用个人中心的地球图标，并将文字下拉符号替换为 Arco 下箭头图标。
+- 验证通过：`npm run build`、`git diff --check`。
+
+## 2026-10-21 收件箱搜索清除操作（已完成）
+
+- 会话列表搜索框在存在关键词时显示清除图标，点击后清空关键词并回到完整会话列表。
+- 验证通过：`npm run build`、`git diff --check`。
+
+## 2026-10-21 收件箱 AI Agent 头像裁切修复（已完成）
+
+- 收件箱左侧 AI Agent 导航树及筛选器头像统一使用固定正方形圆形容器，纵向图片按 `object-fit: cover` 居中裁切。
+- 验证通过：`npm run build`、`git diff --check`。
+
+## 2026-10-21 收件箱图片消息全屏预览（已完成）
+
+- 图片消息支持点击进入全屏预览；悬停显示放大图标，支持点击遮罩、关闭按钮或按 `Esc` 退出。
+- 验证通过：`npm run build`、`git diff --check`。
+
+## 2026-10-21 收件箱长图完整预览与缩放操作（已完成）
+
+- 全屏预览改为受可视区域约束的独立画布，图片以原始比例完整显示，不裁切、不拉伸；纵向长图会自动缩放至可视范围内。
+- 新增缩小、放大、适应屏幕与原始尺寸操作；支持滚轮缩放，放大后可在边界内拖拽查看细节，缩放范围为 25% 至 300%。
+- 验证通过：`npm run build`、`npx oxlint src/pages/InboxPage.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。

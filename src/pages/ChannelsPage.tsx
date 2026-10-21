@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button, Dropdown, Empty, Input, InputNumber, Menu, Message, Modal, Switch, Table } from '../components/ui';
-import { IconArrowLeft, IconCopy, IconExclamationCircle, IconLaunch, IconMore, IconNotification, IconNotificationClose, IconPlus, IconRobot, IconSearch, IconSend, IconUpload } from '@arco-design/web-react/icon';
+import { Button, Dropdown, Empty, Input, InputNumber, Menu, Message, Modal, Switch, Table, Tooltip } from '../components/ui';
+import { IconArrowLeft, IconCopy, IconLaunch, IconMore, IconNotification, IconNotificationClose, IconPlus, IconQuestionCircle, IconSearch, IconSend, IconUpload } from '@arco-design/web-react/icon';
 import { now } from '../mockData';
 import { useAppStore } from '../store';
 import type { Agent, Channel, ChannelType } from '../types';
 import { ChannelTypeIcon } from '../components/ChannelTypeIcon';
+import { AgentAvatar } from '../components/AgentAvatar';
 import channelEmptyState from '../assets/channel-empty-state-v2.png';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -64,11 +65,15 @@ const channelMeta: Record<ChannelType, { name: string; title: string; descriptio
 };
 
 type Draft = {
+  channelId: string;
   name: string;
   agentId?: string;
+  accountId: string;
   accessToken: string;
+  clientId: string;
   botToken: string;
   webhookUrl: string;
+  webhookSecret: string;
   language: string;
   websiteDomain: string;
 };
@@ -136,6 +141,10 @@ function normalizeChannel(channel: Channel): Channel {
   };
 }
 
+function buildWebhookSecret(channelId: string) {
+  return `whsec_${channelId.replace(/[^a-z0-9]/gi, '').padEnd(28, '0').slice(0, 28)}`;
+}
+
 function parseWebsiteDomain(rawValue: string): { domain?: string; error?: string } {
   const value = rawValue.trim();
   if (!value) return { error: '请输入网站域名' };
@@ -198,12 +207,6 @@ function ChannelSideNav({ activeType, mode }: { activeType?: ChannelType; mode: 
 
 function getAgent(agents: Agent[], agentId?: string) {
   return agentId ? agents.find((agent) => agent.id === agentId) : undefined;
-}
-
-function AgentAvatar({ agent }: { agent?: Agent }) {
-  if (!agent) return <span className="channel-agent-avatar is-empty"><IconExclamationCircle /></span>;
-  if (agent.avatar) return <span className="channel-agent-avatar"><img src={agent.avatar} alt="" /></span>;
-  return <span className="channel-agent-avatar"><IconRobot /></span>;
 }
 
 function AgentCell({ agent }: { agent?: Agent }) {
@@ -334,13 +337,17 @@ function DeleteChannelModal({ target, value, onChange, onCancel, onConfirm }: { 
 
 function buildInitialDraft(type: ChannelType, channel?: Channel): Draft {
   const normalized = channel ? normalizeChannel(channel) : undefined;
-  const id = normalized?.id ?? makeId(`channel-${type}`);
+  const channelId = normalized?.id ?? makeId(`channel-${type}`);
   return {
+    channelId,
     name: normalized?.name ?? '',
     agentId: normalized?.agentId,
+    accountId: normalized?.accountId ?? '',
     accessToken: normalized?.accessToken ?? '',
+    clientId: normalized?.clientId ?? '',
     botToken: normalized?.botToken ?? '',
-    webhookUrl: normalized?.webhookUrl ?? (type === 'livechat' ? `https://im-support.example.com/webhooks/livechat/${id}` : ''),
+    webhookUrl: normalized?.webhookUrl ?? (type === 'livechat' ? `https://im-support.example.com/webhooks/livechat/${channelId}` : ''),
+    webhookSecret: normalized?.webhookSecret ?? (type === 'livechat' ? buildWebhookSecret(channelId) : ''),
     language: normalized?.language ?? 'auto',
     websiteDomain: normalized?.websiteDomain ?? '',
   };
@@ -388,8 +395,10 @@ function ChannelConfigModal({ type, modal, onClose, onSaved }: { type: ChannelTy
     if (state.channels.some((channel) => channel.id !== existing?.id && channel.name.trim().toLowerCase() === name.toLowerCase())) return '渠道名称已存在，请使用唯一名称';
     if (!draft.agentId) return '请选择接待 AI Agent';
     if (type === 'livechat') {
+      if (!draft.accountId.trim()) return '请输入 Account ID';
       if (draft.accessToken.trim().length < 8) return 'Access Token 至少需要 8 个字符';
       if (/fail|invalid/i.test(draft.accessToken)) return 'Access Token 校验失败，请检查 Livechat 后台凭证';
+      if (!draft.clientId.trim()) return '请输入 Client ID';
     }
     if (type === 'telegram') {
       if (!/^\d+:\S+$/.test(draft.botToken.trim())) return 'Bot Token 格式不正确，示例：123456789:token';
@@ -405,7 +414,7 @@ function ChannelConfigModal({ type, modal, onClose, onSaved }: { type: ChannelTy
     if (validationError) { setError(validationError); return; }
     setSaving(true);
     const savedAt = now();
-    const id = existing?.id ?? makeId(`channel-${type}`);
+    const id = draft.channelId;
     const normalizedDomain = domainResult.domain;
     const channel: Channel = {
         ...existing,
@@ -414,9 +423,12 @@ function ChannelConfigModal({ type, modal, onClose, onSaved }: { type: ChannelTy
         name: draft.name.trim(),
         agentId: draft.agentId,
         enabled: existing?.enabled ?? true,
+        accountId: type === 'livechat' ? draft.accountId.trim() : undefined,
         accessToken: type === 'livechat' ? draft.accessToken.trim() : undefined,
+        clientId: type === 'livechat' ? draft.clientId.trim() : undefined,
         botToken: type === 'telegram' ? draft.botToken.trim() : undefined,
         webhookUrl: type === 'livechat' ? draft.webhookUrl : undefined,
+        webhookSecret: type === 'livechat' ? draft.webhookSecret : undefined,
         language: modernChannelTypes.includes(type) ? draft.language : undefined,
         websiteDomain: type === 'web-widget' ? normalizedDomain : undefined,
         allowedDomains: type === 'web-widget' ? (existing?.allowedDomains ?? []) : undefined,
@@ -451,39 +463,53 @@ function ChannelConfigModal({ type, modal, onClose, onSaved }: { type: ChannelTy
     if (mode === 'create') onSaved?.(channel);
     Message.success(mode === 'create' ? '渠道已连接' : '渠道已保存');
   };
-  const copyWebhook = () => {
-    void navigator.clipboard?.writeText(draft.webhookUrl);
-    Message.success('Webhook URL 已复制');
+  const copyValue = (value: string, label: string) => {
+    void navigator.clipboard?.writeText(value);
+    Message.success(`${label}已复制`);
   };
   const closeWithConfirm = () => {
     if (!dirty) { onClose(); return; }
     Modal.confirm({ title: '放弃未保存的内容？', content: '关闭后本次填写内容不会保存。', okText: '放弃内容', cancelText: '继续编辑', onOk: onClose });
   };
   const tokenField = channelMeta[type].tokenField;
+  const livechatMissingFields = type === 'livechat' ? [
+    !draft.name.trim() && '渠道名称',
+    !draft.accessToken.trim() && 'Access Token',
+    !draft.accountId.trim() && 'Account ID',
+    !draft.clientId.trim() && 'Client ID',
+    !draft.agentId && '接待 AI Agent',
+  ].filter(Boolean) : [];
+  const submitDisabled = saving || (mode === 'edit' && !dirty) || livechatMissingFields.length > 0;
+  const fieldLabel = (label: string, help?: string, required = type === 'livechat') => <span className="channel-field-label">{label}{required && <em>*</em>}{help && <Tooltip title={help}><button type="button" className="channel-field-help" aria-label={`${label}说明`}><IconQuestionCircle /></button></Tooltip>}</span>;
 
   const title = <span className="channel-config-title"><ChannelLogo type={type} />{mode === 'create' ? `接入 ${channelMeta[type].name}` : `编辑 ${channelMeta[type].name}`}</span>;
 
   return <Modal className="channel-config-modal" open={Boolean(modal)} title={title} footer={null} onCancel={closeWithConfirm} destroyOnHidden>
     <div className="channel-config-form">
-      <label className="channel-field"><span>渠道名称</span><Input value={draft.name} onChange={(name) => update({ name })} placeholder="请输入渠道名称" /></label>
-      {tokenField && <label className="channel-field"><span>{channelMeta[type].tokenLabel}</span><Input.Password value={draft[tokenField]} onChange={(value) => update({ [tokenField]: value })} placeholder={type === 'telegram' ? '123456789:telegram_bot_token' : '输入 Livechat Access Token'} /></label>}
-      {type === 'livechat' && <label className="channel-field"><span>Webhook URL</span><div className="channel-copy-field"><Input value={draft.webhookUrl} readOnly /><Button icon={<IconCopy />} onClick={copyWebhook}>复制</Button></div></label>}
+      <label className="channel-field">{fieldLabel('渠道名称')}<Input value={draft.name} onChange={(name) => update({ name })} placeholder="请输入渠道名称" /></label>
+      {tokenField && <label className="channel-field">{fieldLabel(channelMeta[type].tokenLabel ?? '', type === 'livechat' ? '在 Livechat 后台创建 Personal Access Token 获取。' : undefined)}<Input.Password value={draft[tokenField]} onChange={(value) => update({ [tokenField]: value })} placeholder={type === 'telegram' ? '123456789:telegram_bot_token' : '输入 Livechat Access Token'} /></label>}
+      {type === 'livechat' && <>
+        <label className="channel-field">{fieldLabel('Account ID', '与 Access Token 对应的 Livechat 账号 ID。')}<Input value={draft.accountId} onChange={(accountId) => update({ accountId })} placeholder="输入 Livechat Account ID" /></label>
+        <label className="channel-field">{fieldLabel('Client ID', 'Livechat Webhook 应用的 Client ID。')}<Input value={draft.clientId} onChange={(clientId) => update({ clientId })} placeholder="输入 Webhook 应用的 Client ID" /></label>
+        <label className="channel-field">{fieldLabel('Webhook URL', undefined, false)}<div className="channel-copy-field"><Input value={draft.webhookUrl} readOnly /><Button icon={<IconCopy />} onClick={() => copyValue(draft.webhookUrl, 'Webhook URL ')}>复制</Button></div></label>
+        <label className="channel-field">{fieldLabel('Webhook 密钥', undefined, false)}<div className="channel-copy-field"><Input value={draft.webhookSecret} readOnly /><Button icon={<IconCopy />} onClick={() => copyValue(draft.webhookSecret, 'Webhook 密钥')}>复制</Button></div></label>
+      </>}
       {type === 'web-widget' && <label className="channel-field"><span>网站域名</span><Input value={draft.websiteDomain} onChange={updateWebsiteDomain} onBlur={normalizeWebsiteDomain} status={domainError ? 'error' : undefined} placeholder="输入您的网站域名" />{domainError && <small className="channel-field-error" role="alert">{domainError}</small>}</label>}
       {modernChannelTypes.includes(type) && <label className="channel-field"><span>界面语言</span><ChannelOptionSelect value={draft.language} onChange={(language) => update({ language })} options={interfaceLanguageOptions} /></label>}
-      <div className="channel-field"><span>接待 AI Agent</span><div className="channel-agent-select">
+      <div className="channel-field">{fieldLabel('接待 AI Agent')}<div className="channel-agent-select">
         <button type="button" className={`channel-agent-select-trigger ${agentPickerOpen ? 'is-open' : ''}`} onClick={() => setAgentPickerOpen((open) => !open)}>
           <span>{selectedAgent ? <><AgentAvatar agent={selectedAgent} />{selectedAgent.name}</> : '选择接待 AI Agent'}</span>
           <i aria-hidden="true" />
         </button>
         {agentPickerOpen && <div className="channel-agent-options">
-          {state.agents.map((agent) => <button type="button" key={agent.id} className={agent.id === draft.agentId ? 'is-selected' : ''} onClick={() => { update({ agentId: agent.id }); setAgentPickerOpen(false); }}>
+          {state.agents.filter((agent) => agent.status === 'published').map((agent) => <button type="button" key={agent.id} className={agent.id === draft.agentId ? 'is-selected' : ''} onClick={() => { update({ agentId: agent.id }); setAgentPickerOpen(false); }}>
             <AgentAvatar agent={agent} />
             <span>{agent.name || '未命名'}</span>
           </button>)}
         </div>}
       </div></div>
       {error && <div className="channel-form-error">{error}</div>}
-      <div className="channel-form-actions"><Button onClick={onClose}>取消</Button><Button type="primary" loading={saving} disabled={mode === 'edit' && !dirty} onClick={submit}>{mode === 'create' ? (type === 'web-widget' ? '添加网站' : '创建') : '保存'}</Button></div>
+      <div className="channel-form-actions"><Button onClick={onClose}>取消</Button><Button type="primary" loading={saving} disabled={submitDisabled} onClick={submit}>{mode === 'create' ? (type === 'web-widget' ? '添加网站' : '创建') : '保存'}</Button></div>
     </div>
   </Modal>;
 }

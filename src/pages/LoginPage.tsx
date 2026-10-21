@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconLock, IconUser } from '@arco-design/web-react/icon';
+import { IconDown, IconLock, IconUser } from '@arco-design/web-react/icon';
+import { RiGlobalLine } from '@remixicon/react';
 import loginHero from '../assets/login-hero.png';
 import { Button, Input, Message, Popover } from '../components/ui';
 import { STRONG_PASSWORD_MESSAGE, isStrongPassword } from '../auth';
@@ -82,7 +83,7 @@ export function LoginPage() {
     </section>
     <section className="login-panel" aria-labelledby="login-title">
       <Popover trigger="click" position="bottom" content={languageMenu}>
-        <button className="login-language-trigger" type="button"><span aria-hidden="true">◎</span>{LANGUAGE_LABELS[language]}<span aria-hidden="true">⌄</span></button>
+        <button className="login-language-trigger" type="button"><RiGlobalLine className="language-globe-icon" aria-hidden="true" />{LANGUAGE_LABELS[language]}<IconDown aria-hidden="true" /></button>
       </Popover>
       <form className="login-form" onSubmit={submit} noValidate>
         <div className="login-form-head">

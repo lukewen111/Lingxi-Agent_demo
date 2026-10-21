@@ -133,8 +133,10 @@ export interface Channel {
   enabled: boolean;
   accountId?: string;
   accessToken?: string;
+  clientId?: string;
   botToken?: string;
   webhookUrl?: string;
+  webhookSecret?: string;
   language?: string;
   websiteDomain?: string;
   allowedDomains?: string[];

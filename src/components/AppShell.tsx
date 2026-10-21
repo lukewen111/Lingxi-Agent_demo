@@ -1,5 +1,6 @@
 import { Button, Layout, Menu, Popover } from './ui';
 import { IconApps, IconBook, IconCheck, IconDown, IconMenuFold, IconMenuUnfold, IconMessage, IconPoweroff, IconRobot, IconSettings } from '@arco-design/web-react/icon';
+import { RiGlobalLine } from '@remixicon/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MemberAvatar } from './MemberAvatar';
@@ -136,7 +137,7 @@ function SidebarProfile({ username, collapsed, language, onLanguageChange, onLog
         <div><strong>{username}</strong></div>
       </div>
       <button className={`sidebar-profile-menu-item ${languageOpen ? 'is-active' : ''}`} type="button" role="menuitem" onClick={() => setLanguageOpen((value) => !value)}>
-        <span className="profile-menu-icon">◎</span>
+        <RiGlobalLine className="profile-menu-icon" aria-hidden="true" />
         <span>{t('language')}</span>
         <span className="profile-menu-arrow">›</span>
       </button>

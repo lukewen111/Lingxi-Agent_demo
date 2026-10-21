@@ -3,11 +3,15 @@ import { useSearchParams } from 'react-router-dom';
 import {
   IconArrowDown,
   IconArrowUp,
+  IconApps,
   IconCalendar,
   IconCheck,
   IconDoubleLeft,
   IconDoubleRight,
+  IconEye,
+  IconFullscreen,
   IconLeft,
+  IconOriginalSize,
   IconRight,
   IconClose,
   IconExclamationCircle,
@@ -17,10 +21,14 @@ import {
   IconRefresh,
   IconRobot,
   IconSearch,
+  IconZoomIn,
+  IconZoomOut,
 } from '@arco-design/web-react/icon';
 import { Button, Empty, Input, Popover, Select } from '../components/ui';
 import { ChannelTypeIcon } from '../components/ChannelTypeIcon';
+import { MemberAvatar } from '../components/MemberAvatar';
 import { inboxAgents, inboxChannels, inboxConversations } from '../inboxMockData';
+import { currentMember } from '../permissions';
 import { useAppStore } from '../store';
 import type { Agent, InboxChannelType, InboxConversation } from '../types';
 
@@ -187,6 +195,7 @@ function MessageSkeleton() {
 
 export function InboxPage() {
   const { state } = useAppStore();
+  const currentUsername = currentMember(state)?.username ?? state.session?.username ?? '当前客服';
   const allConversations = useMemo(() => [...state.channelConversations, ...inboxConversations], [state.channelConversations]);
   const agentOptions = useMemo(() => {
     const values = new Map<string, { id: string; name: string }>(inboxAgents.map((item) => [item.id, { id: item.id, name: item.name }]));
@@ -226,6 +235,68 @@ export function InboxPage() {
   const keyword = searchParams.get('q') ?? '';
   const selectedId = searchParams.get('conversation') ?? '';
   const demoState = searchParams.get('demo') ?? '';
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
+  const previewStageRef = useRef<HTMLDivElement | null>(null);
+  const previewImageRef = useRef<HTMLImageElement | null>(null);
+  const previewDragRef = useRef<{ pointerId: number; startX: number; startY: number; offsetX: number; offsetY: number } | null>(null);
+
+  useEffect(() => {
+    if (!previewImage) return;
+    setPreviewScale(1);
+    setPreviewOffset({ x: 0, y: 0 });
+    const closePreview = (event: KeyboardEvent) => { if (event.key === 'Escape') setPreviewImage(null); };
+    window.addEventListener('keydown', closePreview);
+    return () => window.removeEventListener('keydown', closePreview);
+  }, [previewImage]);
+
+  const clampPreviewOffset = useCallback((offset: { x: number; y: number }, scale: number) => {
+    const stage = previewStageRef.current;
+    const image = previewImageRef.current;
+    if (!stage || !image) return { x: 0, y: 0 };
+    const maxX = Math.max(0, (image.clientWidth * scale - stage.clientWidth) / 2);
+    const maxY = Math.max(0, (image.clientHeight * scale - stage.clientHeight) / 2);
+    return { x: Math.min(maxX, Math.max(-maxX, offset.x)), y: Math.min(maxY, Math.max(-maxY, offset.y)) };
+  }, []);
+
+  const updatePreviewScale = useCallback((nextScale: number) => {
+    const scale = Math.min(3, Math.max(.25, Number(nextScale.toFixed(2))));
+    setPreviewScale(scale);
+    setPreviewOffset((offset) => clampPreviewOffset(offset, scale));
+  }, [clampPreviewOffset]);
+
+  const resetPreview = useCallback(() => {
+    setPreviewScale(1);
+    setPreviewOffset({ x: 0, y: 0 });
+  }, []);
+
+  const showOriginalSize = useCallback(() => {
+    const image = previewImageRef.current;
+    if (!image?.naturalWidth || !image.clientWidth) return;
+    updatePreviewScale(image.naturalWidth / image.clientWidth);
+  }, [updatePreviewScale]);
+
+  const handlePreviewWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    updatePreviewScale(previewScale + (event.deltaY < 0 ? .15 : -.15));
+  }, [previewScale, updatePreviewScale]);
+
+  const handlePreviewPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (previewScale <= 1) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    previewDragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, offsetX: previewOffset.x, offsetY: previewOffset.y };
+  }, [previewOffset, previewScale]);
+
+  const handlePreviewPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = previewDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setPreviewOffset(clampPreviewOffset({ x: drag.offsetX + event.clientX - drag.startX, y: drag.offsetY + event.clientY - drag.startY }, previewScale));
+  }, [clampPreviewOffset, previewScale]);
+
+  const handlePreviewPointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (previewDragRef.current?.pointerId === event.pointerId) previewDragRef.current = null;
+  }, []);
 
   const updateParams = useCallback((patch: Record<string, string | string[] | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -594,7 +665,7 @@ export function InboxPage() {
                 content={<div className="inbox-filter-category-menu">
                   {status !== 'processing' && !draftFilterTypes.includes('date') && <button type="button" onClick={() => chooseFilterType('date')}><IconCalendar /><span>日期</span></button>}
                   {!draftFilterTypes.includes('agent') && <button type="button" onClick={() => chooseFilterType('agent')}><IconRobot /><span>AI Agent</span></button>}
-                  {!draftFilterTypes.includes('channel') && <button type="button" onClick={() => chooseFilterType('channel')}><IconMessage /><span>渠道</span></button>}
+                  {!draftFilterTypes.includes('channel') && <button type="button" onClick={() => chooseFilterType('channel')}><IconApps /><span>渠道</span></button>}
                   {draftFilterTypes.length === availableFilterTypeCount && <span className="inbox-filter-all-added">所有筛选条件已添加</span>}
                 </div>}
               >
@@ -607,7 +678,7 @@ export function InboxPage() {
         </div>
         <div className="inbox-list-tools">
           <Select className="inbox-mobile-status" value={status} aria-label="会话状态" onChange={(value) => selectStatus(value as InboxStatus)} options={statusItems.map((item) => ({ value: item.key, label: `${item.label} ${statusCounts[item.key]}` }))} />
-          <Input allowClear value={keyword} prefix={<IconSearch />} aria-label="搜索消息内容" placeholder="搜索消息内容" onChange={(value) => updateParams({ q: value || null, conversation: null })} />
+          <Input value={keyword} prefix={<IconSearch />} suffix={keyword ? <button className="inbox-search-clear" type="button" aria-label="清除搜索内容" onMouseDown={(event) => event.preventDefault()} onClick={() => updateParams({ q: null, conversation: null })}><IconClose /></button> : null} aria-label="搜索消息内容" placeholder="搜索消息内容" onChange={(value) => updateParams({ q: value || null, conversation: null })} />
           {draftFilterTypes.length > 0 && <div className="inbox-filter-chips">
             {draftFilterTypes.map((type) => <Popover
               key={type}
@@ -619,7 +690,7 @@ export function InboxPage() {
               content={renderFilterPicker(type)}
             >
               <span className={`inbox-filter-chip ${activeFilter === type ? 'is-open' : ''}`}>
-                <button type="button" className="inbox-filter-chip-main" onClick={() => setActiveFilter(type)}>{type === 'date' ? <IconCalendar /> : type === 'agent' ? <IconRobot /> : <IconMessage />}<span>{getFilterLabel(type)}</span></button>
+                <button type="button" className="inbox-filter-chip-main" onClick={() => setActiveFilter(type)}>{type === 'date' ? <IconCalendar /> : type === 'agent' ? <IconRobot /> : <IconApps />}<span>{getFilterLabel(type)}</span></button>
                 <button type="button" className="inbox-filter-chip-remove" aria-label={`移除 ${type === 'date' ? '日期' : type === 'agent' ? 'AI Agent' : '渠道'} 筛选`} onClick={(event) => { event.stopPropagation(); removeFilterType(type); }}><IconClose /></button>
               </span>
             </Popover>)}
@@ -665,10 +736,10 @@ export function InboxPage() {
                 : <div className={`inbox-message-row is-${message.role}`} key={message.id}>
                   {message.role === 'customer' && <span className={`inbox-customer-avatar is-message ${avatarTone(selectedConversation.customerName)}`}>{initials(selectedConversation.customerName)}</span>}
                   <div className="inbox-message-content">
-                    <span className="inbox-message-author">{message.role === 'agent' ? selectedConversation.agentName : selectedConversation.customerName}</span>
+                    <span className="inbox-message-author">{message.role === 'agent' ? currentUsername : selectedConversation.customerName}</span>
                     {message.type === 'image'
                       ? <figure className="inbox-message-image-card">
-                          {(message.fileUrl || message.imageUrl) && <img src={message.fileUrl || message.imageUrl} alt={message.content} />}
+                          {(message.fileUrl || message.imageUrl) && <button type="button" className="inbox-message-image-trigger" aria-label="全屏预览图片" onClick={() => setPreviewImage({ src: message.fileUrl || message.imageUrl || '', alt: message.content })}><img src={message.fileUrl || message.imageUrl} alt={message.content} /><span aria-hidden="true"><IconEye /></span></button>}
                           <figcaption>{message.content}</figcaption>
                         </figure>
                       : message.type === 'video' && message.fileUrl
@@ -680,7 +751,7 @@ export function InboxPage() {
                       : <div className="inbox-message-bubble">{message.content}</div>}
                     <time>{formatMessageTime(message.sentAt)}</time>
                   </div>
-                  {message.role === 'agent' && <span className="inbox-agent-avatar"><IconRobot /></span>}
+                  {message.role === 'agent' && <MemberAvatar username={currentUsername} size={30} />}
                 </div>)}
               {nextHistoryConversation && messageEdge.bottom && <button type="button" className="inbox-thread-jump is-bottom" onClick={() => switchHistory(nextHistoryConversation)}><IconArrowDown /> 下一个会话</button>}
             </>}
@@ -689,5 +760,17 @@ export function InboxPage() {
         </>}
       </section>
     </div>
+    {previewImage && <div className="inbox-image-preview" role="dialog" aria-modal="true" aria-label="图片预览" onClick={() => setPreviewImage(null)}>
+      <div className="inbox-image-preview-toolbar" role="toolbar" aria-label="图片缩放操作" onClick={(event) => event.stopPropagation()}>
+        <button type="button" aria-label="缩小图片" title="缩小" disabled={previewScale <= .25} onClick={() => updatePreviewScale(previewScale - .25)}><IconZoomOut /></button>
+        <button type="button" aria-label="放大图片" title="放大" disabled={previewScale >= 3} onClick={() => updatePreviewScale(previewScale + .25)}><IconZoomIn /></button>
+        <button type="button" aria-label="适应屏幕" title="适应屏幕" onClick={resetPreview}><IconFullscreen /></button>
+        <button type="button" aria-label="原始尺寸" title="原始尺寸" onClick={showOriginalSize}><IconOriginalSize /></button>
+      </div>
+      <button type="button" className="inbox-image-preview-close" aria-label="关闭图片预览" title="关闭" onClick={() => setPreviewImage(null)}><IconClose /></button>
+      <div ref={previewStageRef} className={`inbox-image-preview-stage${previewScale > 1 ? ' is-draggable' : ''}`} onClick={(event) => event.stopPropagation()} onWheel={handlePreviewWheel} onPointerDown={handlePreviewPointerDown} onPointerMove={handlePreviewPointerMove} onPointerUp={handlePreviewPointerEnd} onPointerCancel={handlePreviewPointerEnd}>
+        <img ref={previewImageRef} src={previewImage.src} alt={previewImage.alt} style={{ transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewScale})` }} />
+      </div>
+    </div>}
   </section>;
 }
