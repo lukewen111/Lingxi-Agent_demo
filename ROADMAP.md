@@ -1,3 +1,17 @@
+## 2026-10-23 侧边栏收起态使用 Adam Bot 图标（已完成）
+
+- 收起侧边栏时，顶部导航仅显示最新上传的 `画板8.svg` Adam Bot 图标；展开时继续显示完整横向 Logo。
+- 展开态和收起态 Logo 均使用 `22px` 高度，宽度按 SVG 实际比例自适应；移除收起态固定容器，让 Logo 本身参与布局。
+- 收起态图标实际显示为 `28×28px`，利用 SVG 留白将实际视觉高度调整至约 `23～24px`，与展开态横向 Logo 更一致。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。
+
+## 2026-10-23 产品 Logo、favicon 与英文 SEO 元信息更新（已完成）
+
+- 顶部导航产品 Logo 改用 `src/assets/adam-bot-horizontal.svg`，保留原有 `104×30px` Logo 容器尺寸。
+- 浏览器 favicon 改用 `public/favicon-64.ico`。
+- `index.html` 增加英文页面标题、description 与 keywords。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。
+
 ## 2026-10-21 语言切换图标改为地球图标（已完成）
 
 - 将登录页和个人中心中的语言切换入口改为截图同类的经纬线地球图标，移除原语言／书写图标；未改变语言切换逻辑和菜单文案。
@@ -1618,3 +1632,21 @@ Phase 3：基于源力设计系统实现真实项目方式开发的前端产品�
 - 全屏预览改为受可视区域约束的独立画布，图片以原始比例完整显示，不裁切、不拉伸；纵向长图会自动缩放至可视范围内。
 - 新增缩小、放大、适应屏幕与原始尺寸操作；支持滚轮缩放，放大后可在边界内拖拽查看细节，缩放范围为 25% 至 300%。
 - 验证通过：`npm run build`、`npx oxlint src/pages/InboxPage.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有大包体积提示。
+## 2026-10-22 顶部导航接入正式产品 Logo（已完成）
+
+- 将正式 Logo `src/assets/adam-bot-horizontal.svg` 接入产品顶部导航，替换原有 `LOGO` 文本占位符；运营后台导航仍保留原有「运营后台管理」文字标识。
+- 普通产品导航使用固定 `104×30px` 容器，SVG 按原始比例等比缩放并完整显示，避免拉伸与裁切。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx --max-warnings=0`；Playwright 登录后实测 Logo 渲染尺寸为 `104×30px`。
+
+## 2026-10-22 顶部导航 Logo 资源更新（已完成）
+
+- 将顶部导航 Logo 由 SVG 资源替换为最新 PNG 资源 `src/assets/adam-bot-horizontal.png`。
+- 保持原有 `104×30px` 导航占位尺寸与布局不变；浏览器实测渲染尺寸为 `104×30px`。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx --max-warnings=0`。
+
+## 2026-10-22 顶部导航 Logo 最终资源更新（已完成）
+
+- 使用最新提供的 `画板 6.png` 覆盖顶部导航 Logo 资源，保留原有资源引用路径，避免影响组件结构。
+- 保持导航 Logo 显示尺寸 `104×30px` 不变；浏览器刷新后实测仍为 `104×30px`。
+- 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx --max-warnings=0`。
+

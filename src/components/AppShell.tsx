@@ -7,6 +7,8 @@ import { MemberAvatar } from './MemberAvatar';
 import { createTranslator, LANGUAGE_LABELS } from '../i18n';
 import type { AppLanguage, WorkspaceMode } from '../i18n';
 import { useAppStore } from '../store';
+import productLogo from '../assets/adam-bot-horizontal.svg';
+import productLogoIcon from '../assets/adam-bot-icon.svg';
 import { currentMember, LEAF_ROUTE_MAP, MENU_TREE } from '../permissions';
 
 const { Header, Sider, Content } = Layout;
@@ -90,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return <Layout className="app-layout">
     <Header className={`app-header ${isOps ? 'is-ops' : ''}`}>
-      <div className="brand"><span className="brand-name is-logo-text">{isOps ? '运营后台管理' : 'LOGO'}</span>{!isOps && allowedWorkspaces.length > 0 && <Popover trigger="click" position="br" content={workspaceMenu} popupVisible={workspaceOpen} onVisibleChange={setWorkspaceOpen}><button className="workspace-switch-trigger" type="button"><span>{workspaceMode === 'livechat' ? t('livechat') : t('aiAgents')}</span><IconDown /></button></Popover>}{!isOps && <Button className="sider-toggle" type="text" shape="circle" aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'} icon={collapsed ? <IconMenuUnfold /> : <IconMenuFold />} onClick={() => setCollapsed((value) => !value)} />}</div>
+      <div className="brand"><span className={`brand-name ${isOps ? 'is-logo-text' : collapsed ? 'is-product-logo is-product-logo-collapsed' : 'is-product-logo'}`}>{isOps ? '运营后台管理' : <img src={collapsed ? productLogoIcon : productLogo} alt="Adam Bot" />}</span>{!isOps && allowedWorkspaces.length > 0 && <Popover trigger="click" position="br" content={workspaceMenu} popupVisible={workspaceOpen} onVisibleChange={setWorkspaceOpen}><button className="workspace-switch-trigger" type="button"><span>{workspaceMode === 'livechat' ? t('livechat') : t('aiAgents')}</span><IconDown /></button></Popover>}{!isOps && <Button className="sider-toggle" type="text" shape="circle" aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'} icon={collapsed ? <IconMenuUnfold /> : <IconMenuFold />} onClick={() => setCollapsed((value) => !value)} />}</div>
     {isOps ? <button className="product-entry" type="button" onClick={enterProduct}>进入产品</button> : <button className="ops-entry" type="button" onClick={() => navigate('/ops/tenants')}>点击跳转到运营后台管理</button>}</Header>
     <Layout>
       {workspaceMode === 'agents' && !isOps && <Sider width={200} collapsed={collapsed} className="app-sider" breakpoint="md" collapsedWidth={56} onCollapse={setCollapsed}>
