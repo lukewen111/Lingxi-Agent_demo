@@ -1149,6 +1149,12 @@ Phase 3：基于源力设计系统实现真实项目方式开发的前端产品�
 - 修复全局样式文件末尾的同名规则将该入口重新设为可见的问题，收件箱等非知识库页面现也统一隐藏。
 - 验证通过：`npm run build`、`npx oxlint src/components/AppShell.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有包体积提示。
 
+## 2026-10-30 AI Agent 绑定知识库选择器对齐（已完成）
+
+- 「绑定知识库」弹窗复用「绑定文档」的搜索、资源行、选择态与底部操作结构，主操作统一为「绑定」。
+- 知识库页面列表和弹窗候选项均使用文件夹图标，避免与文档资源混淆；页面搜索与弹窗搜索独立，互不影响。
+- 验证通过：`npm run build`、`npx oxlint src/components/AgentKnowledgeFolders.tsx --max-warnings=0`、`git diff --check`；构建仅保留既有包体积提示。
+
 ## 已完成
 
 - 已读取客户支持智能体 V1 PRD。

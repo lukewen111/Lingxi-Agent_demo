@@ -171,6 +171,8 @@ select:focus-visible {
 .document-picker-list .arco-checkbox-text { flex: 1; min-width: 0; }
 .resource-picker-row-main { display: inline-flex; min-width: 0; align-items: center; gap: var(--space-3); }
 .resource-picker-row-main strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.knowledge-folder-name > svg,
+.knowledge-folder-picker-list .resource-picker-row-main > svg { flex: 0 0 auto; color: var(--color-text-2); font-size: 18px; }
 .skill-picker-item, .knowledge-picker-item { display: flex; width: 100%; align-items: center; gap: var(--space-3); padding: var(--space-3); color: var(--color-foreground); text-align: left; background: transparent; border: 0; border-radius: var(--radius-sm); cursor: pointer; }
 .skill-picker-item:hover, .knowledge-picker-item:hover { background: var(--color-primary-bg); }
 .skill-picker-item > span:last-child, .knowledge-picker-item > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 4px; }
