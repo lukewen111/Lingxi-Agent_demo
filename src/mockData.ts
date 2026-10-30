@@ -1,4 +1,4 @@
-import type { AgentConfig, AppState, Channel, Flow, Guard, Session, Skill, Team, TenantMember, TenantRole } from './types';
+import type { AgentConfig, AppState, Channel, Flow, Guard, KnowledgeFolder, KnowledgeQa, Session, Skill, Team, TenantMember, TenantRole } from './types';
 import { MENU_LEAF_KEYS } from './permissions';
 
 export const now = () => new Date().toISOString();
@@ -285,6 +285,23 @@ const teams: Team[] = [
   },
 ];
 
+export const seedKnowledgeFolders: KnowledgeFolder[] = [
+  { id: 'folder-service', name: '客户服务', level: 1, createdAt: at('01', '09:00'), updatedAt: at('11', '09:18') },
+  { id: 'folder-service-default', name: '默认分类', parentId: 'folder-service', level: 2, isDefault: true, createdAt: at('01', '09:00'), updatedAt: at('11', '09:18') },
+  { id: 'folder-order', name: '订单与物流', parentId: 'folder-service', level: 2, createdAt: at('02', '10:10'), updatedAt: at('10', '15:05') },
+  { id: 'folder-order-delivery', name: '配送时效', parentId: 'folder-order', level: 3, createdAt: at('02', '10:10'), updatedAt: at('10', '15:05') },
+  { id: 'folder-sales', name: '售前咨询', level: 1, createdAt: at('03', '09:20'), updatedAt: at('10', '18:36') },
+  { id: 'folder-sales-default', name: '默认分类', parentId: 'folder-sales', level: 2, isDefault: true, createdAt: at('03', '09:20'), updatedAt: at('10', '18:36') },
+  { id: 'folder-member', name: '会员服务', level: 1, createdAt: at('04', '13:40'), updatedAt: at('09', '16:42') },
+  { id: 'folder-member-default', name: '默认分类', parentId: 'folder-member', level: 2, isDefault: true, createdAt: at('04', '13:40'), updatedAt: at('09', '16:42') },
+];
+
+export const seedKnowledgeQas: KnowledgeQa[] = [
+  { id: 'qa-refund-time', question: '退款审核通过后多久到账？', answerHtml: '<p>审核通过后，原路退款通常需要 1—3 个工作日。</p>', answerText: '审核通过后，原路退款通常需要 1—3 个工作日。', folderId: 'folder-service-default', enabled: true, source: 'manual', createdAt: at('10', '11:12'), updatedAt: at('10', '11:12') },
+  { id: 'qa-delivery-time', question: '普通地区的订单多久送达？', answerHtml: '<p>普通地区预计 2—5 个工作日送达，实际以物流轨迹为准。</p>', answerText: '普通地区预计 2—5 个工作日送达，实际以物流轨迹为准。', folderId: 'folder-order-delivery', enabled: true, source: 'file', sourceDocumentId: 'doc-delivery', createdAt: at('11', '01:52'), updatedAt: at('11', '01:52') },
+  { id: 'qa-invoice', question: '电子发票在哪里申请？', answerHtml: '<p>你可以在订单详情中选择申请发票，填写抬头和税号后提交。</p>', answerText: '你可以在订单详情中选择申请发票，填写抬头和税号后提交。', folderId: 'folder-service-default', enabled: false, source: 'file', sourceDocumentId: 'doc-faq', createdAt: at('08', '15:12'), updatedAt: at('08', '15:12') },
+];
+
 export const seedState: AppState = {
   channelConversations: [],
   ui: { language: 'zh-CN', workspaceMode: 'agents' },
@@ -322,6 +339,8 @@ export const seedState: AppState = {
     { id: 'doc-after-sales-failed', type: 'PDF', name: '售后服务处理规范', source: 'after-sales-service-guide.pdf', size: 936960, creator: 'Owen', status: 'failed', content: '文档解析失败：第 12 页内容无法读取，请检查文件后重新处理。', updatedAt: at('11', '08:48') },
     { id: 'doc-broken-page', type: 'URL', name: '支付帮助中心', source: 'https://support.example.com/payment-help', creator: 'Lana', status: 'failed', content: '网页抓取失败：目标页面返回 403，请检查访问权限后重新更新。', updatedAt: at('11', '08:48') },
   ],
+  knowledgeFolders: seedKnowledgeFolders,
+  knowledgeQas: seedKnowledgeQas,
   skills,
   channels: [
     channel({ id: 'channel-web-widget-main', type: 'web-widget', name: '官网网站小部件', agentId: 'agent-support', enabled: true, language: 'auto', websiteDomain: 'support.example.com', allowedDomains: [], installCode: '<script src="https://cdn.example.com/widget.js" data-channel="channel-web-widget-main" async></script>', installStatus: 'success', installCheckedAt: at('11', '10:12'), brandName: 'IM Support', brandSignature: '有问题？我们随时为您提供帮助。', themeColor: '#1c1f26', widgetIcon: 'message', widgetPosition: 'bottom-right', widgetOffsetX: 24, widgetOffsetY: 24, widgetDesktopVisible: true, widgetMobileVisible: true, widgetMobilePosition: 'bottom-right', widgetMobileOffsetX: 16, widgetMobileOffsetY: 16, soundEnabled: true, updatedAt: at('11', '10:08') }),

@@ -4,12 +4,13 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap, Handle, Position, applyNodeChanges, useReactFlow, MarkerType, useUpdateNodeInternals, useNodesInitialized } from '@xyflow/react';
 import type { Connection, NodeProps, NodeChange } from '@xyflow/react';
 import { IconArrowLeft, IconBranch, IconCheck, IconClose, IconCode, IconDelete, IconEdit, IconExclamationCircle, IconMessage, IconPlus, IconRobot, IconSend, IconPlayArrow, IconClockCircle } from '@arco-design/web-react/icon';
-import { Button, Empty, Message, Modal, Tooltip, Tag } from '../components/ui';
+import { Button, Drawer, Empty, Input, Message, Modal, Tooltip, Tag } from '../components/ui';
 import { NodeForm } from './NodeForm';
 import { useAppStore } from '../store';
 import { SaveIndicator, WorkflowBasicsModal, WorkflowStatus } from './WorkflowPages';
 import { connectNodes, hasChanges, makeNode, nodeLabels, validateWorkflow, nodePorts, infoItems, branches } from './model';
 import type { NodeKind, Workflow, WorkflowDraft, WorkflowNode, WorkflowIssue } from './model';
+import { retrieveNodeKnowledge } from '../knowledge/retrieval';
 import '@xyflow/react/dist/style.css';
 import './workflow.css';
 
@@ -61,7 +62,11 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
   const [awaitingPublish, setAwaitingPublish] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [measurements, setMeasurements] = useState<Record<string, { width: number; height: number }>>({});
-  const issues = checked && !readOnly ? validateWorkflow(draft, state.documents.filter((doc) => doc.status === 'success').map((doc) => doc.id)) : [];
+  const [testOpen, setTestOpen] = useState(false);
+  const [testInput, setTestInput] = useState('');
+  const [testResults, setTestResults] = useState<{ node: string; reply: string; source?: string }[]>([]);
+  const folderIds = state.knowledgeFolders.filter((folder) => folder.level === 1).map((folder) => folder.id);
+  const issues = checked && !readOnly ? validateWorkflow(draft, folderIds) : [];
   const selectedNode = draft.nodes.find((node) => node.id === selectedId);
   const selectedEdge = draft.edges.find((edge) => edge.id === edgeId);
   useEffect(() => {
@@ -141,13 +146,13 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
   };
   const publish = () => {
     setChecked(true); setIssuesOpen(true);
-    const errors = validateWorkflow(draft, state.documents.filter((doc) => doc.status === 'success').map((doc) => doc.id));
+    const errors = validateWorkflow(draft, folderIds);
     if (errors.length) { focusIssue(errors[0]); Message.error(errors[0].message); return; }
     Modal.confirm({ title: '发布工作流？', content: `发布「${draft.name}」后，AI Agent 可绑定此流程。已绑定的 AI Agent 将使用本次发布内容。`, okText: '确认发布', onOk: () => { dispatch({ type: 'workflow.publish', id: flow.id }); setAwaitingPublish(true); } });
   };
   return <div className="wf-editor wf-editor-fullpage">
     <header className="wf-editor-header"><div className="wf-editor-heading"><Tooltip title={returnTo === '/workflows' ? '返回流程列表' : '返回 AI Agent'}><Button type="text" shape="circle" icon={<IconArrowLeft />} aria-label="返回" onClick={() => navigate(returnTo)} /></Tooltip><h1 title={draft.name}>{draft.name}</h1>{!readOnly && <Tooltip title="编辑基础信息"><Button type="text" icon={<IconEdit />} aria-label="编辑基础信息" onClick={() => setEditingBasics(true)} /></Tooltip>}{readOnly ? <Tag color="success">已发布版本</Tag> : <WorkflowStatus flow={flow} />}<span className="save-time">最近保存：{formatDate(flow.updatedAt)}</span></div>
-      <div className="wf-editor-actions">{readOnly ? <Button onClick={() => navigate(`/workflows/${flow.id}`)}>编辑草稿</Button> : <><SaveIndicator /><Button type="primary" icon={<IconSend />} disabled={saveStatus !== 'saved' || !hasChanges(flow)} onClick={publish}>发布</Button></>}<Tooltip title={panelOpen ? '收起节点面板' : '展开节点面板'}><Button type="text" icon={panelOpen ? <IconClose /> : <IconPlus />} aria-label={panelOpen ? '收起节点面板' : '展开节点面板'} onClick={() => setPanelOpen(!panelOpen)} /></Tooltip></div>
+      <div className="wf-editor-actions"><Button icon={<IconPlayArrow />} onClick={() => setTestOpen(true)}>测试运行</Button>{readOnly ? <Button onClick={() => navigate(`/workflows/${flow.id}`)}>编辑草稿</Button> : <><SaveIndicator /><Button type="primary" icon={<IconSend />} disabled={saveStatus !== 'saved' || !hasChanges(flow)} onClick={publish}>发布</Button></>}<Tooltip title={panelOpen ? '收起节点面板' : '展开节点面板'}><Button type="text" icon={panelOpen ? <IconClose /> : <IconPlus />} aria-label={panelOpen ? '收起节点面板' : '展开节点面板'} onClick={() => setPanelOpen(!panelOpen)} /></Tooltip></div>
     </header>
     <div className={`wf-editor-workspace${panelOpen ? ' has-panel' : ''}`}>
       <div className="wf-canvas" ref={canvasRef} onDrop={onDrop} onDragOver={(event) => { if (!readOnly) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }}>
@@ -176,6 +181,7 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
       </aside>}
     </div>
     {editingBasics && <WorkflowBasicsModal initial={draft} onClose={() => setEditingBasics(false)} onSubmit={(name, trigger) => { save({ ...draft, name, trigger }); setEditingBasics(false); }} />}
+    <Drawer open={testOpen} width={480} title="测试运行" onCancel={() => setTestOpen(false)} footer={null}><div className="wf-test-panel"><Input.TextArea rows={4} value={testInput} onChange={setTestInput} placeholder="输入用户问题，例如：退款多久到账？" /><Button type="primary" icon={<IconPlayArrow />} onClick={() => { if (!testInput.trim()) return Message.warning('请输入测试问题'); const results = draft.nodes.filter((node) => node.data.kind === 'ai' || node.data.kind === 'reply').map((node) => { const hit = retrieveNodeKnowledge(state, node.data.config, testInput); return { node: node.data.label, reply: hit?.answer || node.data.config.content || node.data.config.message || '当前节点未命中知识。', source: hit?.source }; }); setTestResults(results); }}>运行</Button><div className="wf-test-results">{testResults.map((result, index) => <section key={`${result.node}-${index}`}><strong>{result.node}</strong><p>{result.reply}</p>{result.source && <span>知识来源：{result.source}</span>}</section>)}</div></div></Drawer>
   </div>;
 }
 

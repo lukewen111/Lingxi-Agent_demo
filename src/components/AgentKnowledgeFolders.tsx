@@ -1,0 +1,13 @@
+import { useState } from 'react';
+import { Button, Checkbox, Empty, Input, Modal, Table, Message } from './ui';
+import { IconDelete, IconPlus } from '@arco-design/web-react/icon';
+import { useAppStore } from '../store';
+import type { Agent, KnowledgeFolder } from '../types';
+
+export function AgentKnowledgeFolders({ agent }: { agent: Agent }) {
+  const { state, dispatch } = useAppStore(); const [open, setOpen] = useState(false); const [query, setQuery] = useState(''); const [selected, setSelected] = useState<string[]>(agent.draft.knowledgeIds);
+  const folders = state.knowledgeFolders.filter((folder) => folder.level === 1); const attached = folders.filter((folder) => agent.draft.knowledgeIds.includes(folder.id)); const visible = attached.filter((folder) => folder.name.toLowerCase().includes(query.toLowerCase()));
+  const save = () => { dispatch({ type: 'agent.config', id: agent.id, config: { ...agent.draft, knowledgeIds: selected } }); setOpen(false); Message.success('知识库绑定已保存到草稿'); };
+  const detach = (folder: KnowledgeFolder) => Modal.confirm({ title: '解除绑定？', content: `解除后，当前 AI 客服将不再使用「${folder.name}」中的知识。`, onOk: () => { dispatch({ type: 'agent.config', id: agent.id, config: { ...agent.draft, knowledgeIds: agent.draft.knowledgeIds.filter((id) => id !== folder.id) } }); Message.success('知识库已解除绑定'); } });
+  return <div className="detail-resource-page"><div className="detail-toolbar"><h1 className="resource-page-title">知识库</h1><Button type="primary" icon={<IconPlus />} onClick={() => { setSelected(agent.draft.knowledgeIds); setOpen(true); }}>绑定知识库</Button></div><Input.Search className="resource-page-search" value={query} onChange={setQuery} allowClear placeholder="搜索知识库" /><Table rowKey="id" dataSource={visible} pagination={false} noDataElement={<Empty description={attached.length ? '未找到知识库' : '当前 AI 客服尚未绑定知识库'} />} columns={[{ title: '知识库名称', dataIndex: 'name' }, { title: '最近更新', dataIndex: 'updatedAt', render: (value: string) => value.replace('T', ' ').slice(0, 16) }, { title: '操作', width: 64, render: (_: unknown, folder: KnowledgeFolder) => <Button type="text" danger icon={<IconDelete />} aria-label={`解除绑定：${folder.name}`} onClick={() => detach(folder)} /> }]} /><Modal open={open} title="绑定知识库" onCancel={() => setOpen(false)} onOk={save} okText="保存"><Input.Search value={query} onChange={setQuery} allowClear placeholder="搜索知识库" /><div className="resource-picker-list">{folders.filter((folder) => folder.name.toLowerCase().includes(query.toLowerCase())).map((folder) => <Checkbox key={folder.id} checked={selected.includes(folder.id)} onChange={(checked) => setSelected((items) => checked ? [...items, folder.id] : items.filter((id) => id !== folder.id))}>{folder.name}</Checkbox>)}</div></Modal></div>;
+}

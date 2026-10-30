@@ -107,3 +107,10 @@
   .wf-picker-title { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { .wf-save-saving > .arco-icon { animation: none; } }
+.wf-test-panel { display: grid; gap: var(--space-3); }
+.wf-test-panel > .arco-btn { justify-self: end; }
+.wf-test-results { display: grid; gap: var(--space-3); margin-top: var(--space-2); }
+.wf-test-results section { padding: var(--space-3); background: var(--color-surface-container); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.wf-test-results strong { color: var(--color-foreground); font-weight: 600; }
+.wf-test-results p { margin: var(--space-2) 0; color: var(--color-text-2); white-space: pre-wrap; }
+.wf-test-results span { color: var(--color-muted-foreground); font-size: var(--font-size-small); }

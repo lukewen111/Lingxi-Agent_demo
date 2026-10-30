@@ -5,7 +5,9 @@ import { IconArrowLeft, IconCopy, IconDelete, IconEdit, IconEye, IconImage, Icon
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { BroomIcon } from './components/BroomIcon';
-import { KnowledgePageV2, SkillsPageV2 } from './pages/ModulePages';
+import { retrieveKnowledge } from './knowledge/retrieval';
+import { SkillsPageV2 } from './pages/ModulePages';
+import { KnowledgeCenterPage } from './pages/KnowledgeCenterDemoPage';
 import { WorkflowsPage, AgentWorkflowSection } from './workflows/WorkflowPages';
 import { WorkflowEditorPage } from './workflows/WorkflowEditor';
 import { ChannelsPage as ChannelsModulePage } from './pages/ChannelsPage';
@@ -16,7 +18,7 @@ import { LoginPage } from './pages/LoginPage';
 import { LivechatDashboardPage } from './pages/LivechatDashboardPage';
 import { OpsTenantManagementPage } from './pages/OpsTenantManagementPage';
 import { TeamDetailPage, TeamsPage } from './pages/TeamsPage';
-import { KnowledgeSectionV2 } from './pages/DetailSections';
+import { AgentKnowledgeFolders } from './components/AgentKnowledgeFolders';
 import { InboxPage } from './pages/InboxPage';
 import { ChannelClientPage } from './pages/ChannelClientPage';
 import { RichTextEditor } from './components/RichTextEditor';
@@ -100,9 +102,7 @@ function AgentBasics({ agent }: { agent: Agent }) {
     event.currentTarget.value = '';
   };
 
-  return <div className="agent-config-form"><Form form={form} layout="vertical" initialValues={{ prompt: agent.draft.prompt, language: agent.draft.language, style: agent.draft.style }} onValuesChange={(_changed: Record<string, any>, values: Record<string, any>) => save(values)}>
-    <section className="detail-section"><div className="detail-section-head"><h2>人设</h2></div><div className="detail-section-body"><div className="profile-basic-grid"><div className="profile-name-field"><div className="profile-avatar-control"><Tooltip title="点击上传头像"><Button type="text" className="profile-avatar-upload" aria-label="上传 AI Agent 头像" onClick={() => document.getElementById(avatarInputId)?.click()}><img src={agent.avatar || AVATAR_PLACEHOLDER} alt="" /></Button></Tooltip><span className="profile-avatar-edit" aria-hidden="true"><IconEdit /></span></div><input id={avatarInputId} type="file" accept="image/*" hidden onChange={updateAvatar} /><Form.Item label="名称" required><Input value={agent.name} maxLength={50} placeholder="请输入 AI Agent 名称" onChange={(name) => dispatch({ type: 'agent.update', id: agent.id, patch: { name } })} /></Form.Item></div><Form.Item label="简介"><Input value={agent.description} maxLength={200} placeholder="说明 AI Agent 用途、能力范围或服务场景" onChange={(description) => dispatch({ type: 'agent.update', id: agent.id, patch: { description } })} /></Form.Item></div><Form.Item className="profile-prompt" name="prompt" label="系统提示词"><Input.TextArea autoSize={{ minRows: 1, maxRows: 8 }} showCount maxLength={10000} placeholder="请输入系统提示词" /></Form.Item><Row gutter={16}><Col xs={24} md={12}><Form.Item name="language" label="回复语言"><Select options={REPLY_LANGUAGES.map((value) => ({ value, label: value === DEFAULT_REPLY_LANGUAGE ? <span className="language-default-option">{value}<Tag size="small" color="arcoblue">默认</Tag></span> : value }))} /></Form.Item></Col><Col xs={24} md={12}><Form.Item name="style" label="回复风格"><Select options={['自然', '正式', '简洁', '耐心', '热情'].map((value) => ({ label: value, value }))} /></Form.Item></Col></Row></div></section>
-  </Form></div>;
+  return <div className="agent-config-form"><Form form={form} layout="vertical" initialValues={{ prompt: agent.draft.prompt, language: agent.draft.language, style: agent.draft.style }} onValuesChange={(_changed: Record<string, any>, values: Record<string, any>) => save(values)}><section className="detail-section"><div className="detail-section-head"><h2>人设</h2></div><div className="detail-section-body"><div className="profile-basic-grid"><div className="profile-name-field"><div className="profile-avatar-control"><Tooltip title="点击上传头像"><Button type="text" className="profile-avatar-upload" aria-label="上传 AI Agent 头像" onClick={() => document.getElementById(avatarInputId)?.click()}><img src={agent.avatar || AVATAR_PLACEHOLDER} alt="" /></Button></Tooltip><span className="profile-avatar-edit" aria-hidden="true"><IconEdit /></span></div><input id={avatarInputId} type="file" accept="image/*" hidden onChange={updateAvatar} /><Form.Item label="名称" required><Input value={agent.name} maxLength={50} placeholder="请输入 AI Agent 名称" onChange={(name) => dispatch({ type: 'agent.update', id: agent.id, patch: { name } })} /></Form.Item></div><Form.Item label="简介"><Input value={agent.description} maxLength={200} placeholder="说明 AI Agent 用途、能力范围或服务场景" onChange={(description) => dispatch({ type: 'agent.update', id: agent.id, patch: { description } })} /></Form.Item></div><Form.Item name="prompt" label="系统提示词"><Input.TextArea autoSize={{ minRows: 2, maxRows: 8 }} showCount maxLength={10000} placeholder="请输入系统提示词" /></Form.Item><Row gutter={16}><Col xs={24} md={12}><Form.Item name="language" label="回复语言"><Select options={REPLY_LANGUAGES.map((value) => ({ value, label: value }))} /></Form.Item></Col><Col xs={24} md={12}><Form.Item name="style" label="回复风格"><Select options={['自然', '正式', '简洁', '耐心', '热情'].map((value) => ({ label: value, value }))} /></Form.Item></Col></Row></div></section></Form></div>;
 }
 
 function ReceptionSection({ agent }: { agent: Agent }) {
@@ -186,6 +186,7 @@ type PreviewMessage = { role: 'customer' | 'agent'; content: string; type: 'text
 const formatPreviewTime = (value: string) => new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value));
 
 function AgentPreviewPanel({ agent }: { agent: Agent }) {
+  const { state } = useAppStore();
   const toast = Message;
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<PreviewMessage[]>([]);
@@ -195,7 +196,8 @@ function AgentPreviewPanel({ agent }: { agent: Agent }) {
   const run = () => {
     const message = input.trim();
     if (!message) return;
-    appendExchange({ content: message, type: 'text' }, replyFor(message));
+    const hit = message.includes('人工') ? undefined : retrieveKnowledge(state, agent.draft.knowledgeIds, message);
+    appendExchange({ content: message, type: 'text' }, hit ? `${hit.answer}\n\n知识来源：${hit.source}` : replyFor(message));
     setInput('');
   };
   const sendImage = (event: ChangeEvent<HTMLInputElement>) => {
@@ -224,7 +226,7 @@ function AgentDetailPage() {
   const publish = () => { if (!agent.name.trim()) { toast.error('请输入 AI Agent 名称'); return; } dispatch({ type: 'agent.publish', id: agent.id }); toast.success('AI Agent 已发布'); };
   const activeSection = AGENT_DETAIL_SECTIONS.some((item) => item.key === section) ? section : 'agent';
   const navGroups = [{ title: '配置', items: AGENT_DETAIL_SECTIONS }];
-  const sectionContent = activeSection === 'knowledge' ? <KnowledgeSectionV2 agent={agent} /> : activeSection === 'workflow' ? <AgentWorkflowSection key={agent.id} agent={agent} /> : activeSection === 'reception' ? <ReceptionSection agent={agent} /> : <AgentBasics agent={agent} />;
+  const sectionContent = activeSection === 'knowledge' ? <AgentKnowledgeFolders agent={agent} /> : activeSection === 'workflow' ? <AgentWorkflowSection key={agent.id} agent={agent} /> : activeSection === 'reception' ? <ReceptionSection agent={agent} /> : <AgentBasics agent={agent} />;
   return <div className="detail-page"><PageHeader title={<div className="detail-title"><Button type="text" shape="circle" icon={<IconArrowLeft />} aria-label="返回 AI Agents 列表" onClick={() => navigate('/agents')} /><span className="detail-agent-title">{agent.name || '未命名'}</span></div>} status={agent.status} extra={<span className="save-time">最近保存：{formatDate(agent.updatedAt)}</span>} actions={<div className="agent-detail-actions"><span className="accept-chat-control">接受聊天<Switch checked={agent.acceptingChats} onChange={(checked) => { if (checked && agent.status !== 'published') { toast.warning('请先发布 AI Agent 后再开启接受聊天'); return; } dispatch({ type: 'agent.update', id: agent.id, patch: { acceptingChats: Boolean(checked) } }); }} /></span><Button type="primary" icon={<IconSend />} onClick={publish}>发布</Button></div>} /><div className="detail-workspace"><nav className="detail-nav">{navGroups.map((group) => <div className="detail-nav-group" key={group.title}><div className="detail-nav-title">{group.title}</div>{group.items.map((item) => <button className={`detail-nav-item ${activeSection === item.key ? 'active' : ''}`} key={item.key} onClick={() => navigate(`/agents/${agent.id}/${item.key}`)}>{item.label}</button>)}</div>)}</nav><main className="detail-config-area"><div className="detail-section-page">{!['knowledge', 'workflow'].includes(activeSection) && <h1 className="detail-page-section-title">{AGENT_DETAIL_SECTION_TITLES[activeSection]}</h1>}{sectionContent}</div></main><div className="detail-resizer" role="separator" aria-label="调整预览与测试面板宽度" onMouseDown={() => { resizing.current = true; document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; }} /><div className="detail-preview-wrap" style={{ width: previewWidth }}><AgentPreviewPanel agent={agent} /></div></div></div>;
 }
 
@@ -265,7 +267,7 @@ void VariablesSection;
 void MonitorSection;
 
 function ShellRoutes() {
-  return <AppShell><Routes><Route path="/" element={<Navigate to="/inbox" replace />} /><Route path="/livechat/dashboard" element={<LivechatDashboardPage />} /><Route path="/ops" element={<Navigate to="/ops/tenants" replace />} /><Route path="/ops/tenants" element={<OpsTenantManagementPage />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgePageV2 />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<Navigate to="/settings/chat-timeout" replace />} /><Route path="/settings/chat-timeout" element={<SettingsPage />} /><Route path="/settings/members" element={<UserManagementPage />} /><Route path="/settings/roles" element={<RoleManagementPage />} /><Route path="*" element={<Navigate to="/inbox" replace />} /></Routes></AppShell>;
+  return <AppShell><Routes><Route path="/" element={<Navigate to="/inbox" replace />} /><Route path="/livechat/dashboard" element={<LivechatDashboardPage />} /><Route path="/ops" element={<Navigate to="/ops/tenants" replace />} /><Route path="/ops/tenants" element={<OpsTenantManagementPage />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgeCenterPage />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<Navigate to="/settings/chat-timeout" replace />} /><Route path="/settings/chat-timeout" element={<SettingsPage />} /><Route path="/settings/members" element={<UserManagementPage />} /><Route path="/settings/roles" element={<RoleManagementPage />} /><Route path="*" element={<Navigate to="/inbox" replace />} /></Routes></AppShell>;
 }
 
 function AppRoutes() {

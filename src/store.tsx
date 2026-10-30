@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback, useRef } from 'react';
 import { seedWorkflows, snapshot, validateWorkflow, normalizeLegacyWorkflow } from './workflows/model';
 import type { Workflow, WorkflowDraft } from './workflows/model';
-import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, InboxClosedReason, InboxConversation, InboxMessage, KnowledgeDocument, ReceptionConfig, Skill, Team, TeamMember, TenantAccount, TenantMember, TenantRole } from './types';
+import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, InboxClosedReason, InboxConversation, InboxMessage, KnowledgeDocument, KnowledgeFolder, KnowledgeQa, ReceptionConfig, Skill, Team, TeamMember, TenantAccount, TenantMember, TenantRole } from './types';
 import type { AppLanguage, WorkspaceMode } from './i18n';
-import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, MEMBERS_PERMISSIONS_DEMO_VERSION, now, SEED_CURRENT_MEMBER_ID, seedMembers, seedRoles, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
+import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, MEMBERS_PERMISSIONS_DEMO_VERSION, now, SEED_CURRENT_MEMBER_ID, seedKnowledgeFolders, seedKnowledgeQas, seedMembers, seedRoles, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
 import { DEFAULT_TEAM_ID, DEFAULT_TEAM_NAME, isDefaultTeam } from './teamDefaults';
 import { LOGIN_SESSION_KEY, readDemoSession } from './auth';
 import { currentMember } from './permissions';
@@ -30,6 +30,11 @@ type Action =
   | { type: 'document.add'; document: KnowledgeDocument }
   | { type: 'document.update'; id: string; patch: Partial<KnowledgeDocument> }
   | { type: 'document.delete'; id: string }
+  | { type: 'knowledge.folder.save'; folder: KnowledgeFolder }
+  | { type: 'knowledge.folder.delete'; id: string }
+  | { type: 'knowledge.qa.save'; qa: KnowledgeQa }
+  | { type: 'knowledge.qa.toggle'; id: string; enabled: boolean }
+  | { type: 'knowledge.qa.delete'; ids: string[] }
   | { type: 'skill.add'; skill: Skill }
   | { type: 'skill.toggle'; id: string; enabled: boolean }
   | { type: 'skill.delete'; id: string }
@@ -202,6 +207,25 @@ function withStateDefaults(state: AppState): AppState {
     ui: { language: state.ui?.language ?? 'zh-CN', workspaceMode: state.ui?.workspaceMode ?? 'agents', lastAgentsPath: state.ui?.lastAgentsPath },
     tenantAccounts: state.tenantAccounts ?? seedState.tenantAccounts,
     channelConversations: state.channelConversations ?? [],
+    knowledgeFolders: state.knowledgeFolders ?? seedKnowledgeFolders,
+    knowledgeQas: state.knowledgeQas ?? seedKnowledgeQas,
+  };
+}
+
+function migrateKnowledgeV1(state: AppState): AppState {
+  const folders = state.knowledgeFolders?.length ? state.knowledgeFolders : seedKnowledgeFolders;
+  const topFolderIds = new Set(folders.filter((folder) => folder.level === 1).map((folder) => folder.id));
+  const defaultFolder = folders.find((folder) => folder.isDefault)?.id || 'folder-service-default';
+  const normalizeConfig = (config: AgentConfig): AgentConfig => ({
+    ...config,
+    knowledgeIds: config.knowledgeIds.some((id) => topFolderIds.has(id)) ? config.knowledgeIds.filter((id) => topFolderIds.has(id)) : ['folder-service'],
+  });
+  return {
+    ...state,
+    knowledgeFolders: folders,
+    knowledgeQas: state.knowledgeQas?.length ? state.knowledgeQas : seedKnowledgeQas,
+    documents: state.documents.map((document) => ({ ...document, folderId: document.folderId || defaultFolder, enabled: document.enabled ?? true })),
+    agents: state.agents.map((agent) => ({ ...agent, draft: normalizeConfig(agent.draft), published: agent.published ? normalizeConfig(agent.published) : null })),
   };
 }
 
@@ -224,7 +248,7 @@ function deserializeState(stored: string): AppState {
     }
     return avatar;
   };
-  return withStateDefaults({ ...state, settings: state.settings ?? { chatTimeout: { enabled: true, minutes: 15 } }, agents: state.agents.map((agent) => ({ ...agent, avatar: resolveAvatar(agent), draft: normalizeConfig(agent.draft) ?? agent.draft, published: normalizeConfig(agent.published) })) });
+  return migrateKnowledgeV1(withStateDefaults({ ...state, settings: state.settings ?? { chatTimeout: { enabled: true, minutes: 15 } }, agents: state.agents.map((agent) => ({ ...agent, avatar: resolveAvatar(agent), draft: normalizeConfig(agent.draft) ?? agent.draft, published: normalizeConfig(agent.published) })) }));
 }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -236,7 +260,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'ui.workspace': return { ...state, ui: { ...state.ui, workspaceMode: action.workspaceMode, lastAgentsPath: action.lastAgentsPath ?? state.ui.lastAgentsPath } };
     case 'workflow.add': return { ...state, workflows: [action.workflow, ...state.workflows] };
     case 'workflow.save': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id ? { ...flow, draft: action.draft, updatedAt: now() } : flow) };
-    case 'workflow.publish': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id && !validateWorkflow(flow.draft, state.documents.filter((doc) => doc.status === 'success').map((doc) => doc.id)).length ? { ...flow, published: snapshot(flow.draft), publishedAt: now(), updatedAt: now() } : flow) };
+    case 'workflow.publish': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id && !validateWorkflow(flow.draft, state.knowledgeFolders.filter((folder) => folder.level === 1).map((folder) => folder.id)).length ? { ...flow, published: snapshot(flow.draft), publishedAt: now(), updatedAt: now() } : flow) };
     case 'workflow.delete': return state.agents.some((agent) => agent.draft.workflowIds?.includes(action.id) || agent.published?.workflowIds?.includes(action.id)) ? state : { ...state, workflows: state.workflows.filter((flow) => flow.id !== action.id) };
     case 'agent.workflows': return { ...state, agents: state.agents.map((agent) => agent.id === action.id ? { ...agent, draft: { ...agent.draft, workflowIds: [...new Set(action.workflowIds)].filter((id) => state.workflows.some((flow) => flow.id === id && flow.published)) }, updatedAt: now() } : agent) };
     case 'agent.update': {
@@ -291,9 +315,39 @@ function reducer(state: AppState, action: Action): AppState {
     case 'document.add': return { ...state, documents: [action.document, ...state.documents] };
     case 'document.update': return { ...state, documents: state.documents.map((item) => item.id === action.id ? { ...item, ...action.patch, updatedAt: now() } : item) };
     case 'document.delete': {
-      const isBound = state.agents.some((agent) => agent.draft.knowledgeIds.includes(action.id) || agent.published?.knowledgeIds.includes(action.id));
-      return isBound ? state : { ...state, documents: state.documents.filter((item) => item.id !== action.id) };
+      return { ...state, documents: state.documents.filter((item) => item.id !== action.id), knowledgeQas: state.knowledgeQas.filter((item) => item.sourceDocumentId !== action.id) };
     }
+    case 'knowledge.folder.save': {
+      const siblingDuplicate = state.knowledgeFolders.some((item) => item.id !== action.folder.id && item.parentId === action.folder.parentId && item.name.trim().toLowerCase() === action.folder.name.trim().toLowerCase());
+      if (siblingDuplicate) return state;
+      return { ...state, knowledgeFolders: state.knowledgeFolders.some((item) => item.id === action.folder.id) ? state.knowledgeFolders.map((item) => item.id === action.folder.id ? action.folder : item) : [...state.knowledgeFolders, action.folder] };
+    }
+    case 'knowledge.folder.delete': {
+      const target = state.knowledgeFolders.find((item) => item.id === action.id);
+      if (!target || target.isDefault) return state;
+      if (target.level === 1) {
+        const boundByAgent = state.agents.some((agent) => agent.draft.knowledgeIds.includes(target.id) || Boolean(agent.published?.knowledgeIds.includes(target.id)));
+        const boundByWorkflow = state.workflows.some((workflow) => [workflow.draft, workflow.published].filter(Boolean).some((draft) => draft!.nodes.some((node) => {
+          try { return (JSON.parse(node.data.config.knowledgeIds || '[]') as unknown[]).includes(target.id); } catch { return false; }
+        })));
+        if (boundByAgent || boundByWorkflow) return state;
+      }
+      const removeIds = new Set<string>([action.id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        state.knowledgeFolders.forEach((folder) => { if (folder.parentId && removeIds.has(folder.parentId) && !removeIds.has(folder.id)) { removeIds.add(folder.id); changed = true; } });
+      }
+      return {
+        ...state,
+        knowledgeFolders: state.knowledgeFolders.filter((item) => !removeIds.has(item.id)),
+        knowledgeQas: state.knowledgeQas.filter((item) => !removeIds.has(item.folderId)),
+        documents: state.documents.filter((item) => !item.folderId || !removeIds.has(item.folderId)),
+      };
+    }
+    case 'knowledge.qa.save': return { ...state, knowledgeQas: state.knowledgeQas.some((item) => item.id === action.qa.id) ? state.knowledgeQas.map((item) => item.id === action.qa.id ? action.qa : item) : [action.qa, ...state.knowledgeQas] };
+    case 'knowledge.qa.toggle': return { ...state, knowledgeQas: state.knowledgeQas.map((item) => item.id === action.id ? { ...item, enabled: action.enabled, updatedAt: now() } : item) };
+    case 'knowledge.qa.delete': return { ...state, knowledgeQas: state.knowledgeQas.filter((item) => !action.ids.includes(item.id)) };
     case 'skill.add': return { ...state, skills: [action.skill, ...state.skills] };
     case 'skill.toggle': return { ...state, skills: state.skills.map((item) => item.id === action.id ? { ...item, enabled: action.enabled, updatedAt: now() } : item), agents: action.enabled ? state.agents : state.agents.map((item) => ({ ...item, draft: { ...item.draft, skillIds: item.draft.skillIds.filter((id) => id !== action.id) }, published: item.published ? { ...item.published, skillIds: item.published.skillIds.filter((id) => id !== action.id) } : null })) };
     case 'skill.delete': return { ...state, skills: state.skills.filter((item) => item.id !== action.id), agents: state.agents.map((item) => ({ ...item, draft: { ...item.draft, skillIds: item.draft.skillIds.filter((id) => id !== action.id) }, published: item.published ? { ...item.published, skillIds: item.published.skillIds.filter((id) => id !== action.id) } : null })) };
@@ -378,7 +432,7 @@ function loadState(): AppState {
     }) };
   };
   const withMembers = (state: AppState): AppState => withStateDefaults({ ...ensureMembersPermissionsData(state), session: readDemoSession() });
-  try { const stored = localStorage.getItem(STORAGE_KEY); return withMembers(withWorkflows(ensureModernChannelDemoData(ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : seedState))))); } catch { return withMembers(withWorkflows(ensureModernChannelDemoData(ensureKnowledgeDeleteDemoData(normalizeTeamIds(seedState))))); }
+  try { const stored = localStorage.getItem(STORAGE_KEY); return migrateKnowledgeV1(withMembers(withWorkflows(ensureModernChannelDemoData(ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : seedState)))))); } catch { return migrateKnowledgeV1(withMembers(withWorkflows(ensureModernChannelDemoData(ensureKnowledgeDeleteDemoData(normalizeTeamIds(seedState)))))); }
 }
 
 const StoreContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action>; saveStatus: 'saving' | 'saved' | 'error'; retrySave: () => void; login: (username: string) => void; logout: () => void } | null>(null);

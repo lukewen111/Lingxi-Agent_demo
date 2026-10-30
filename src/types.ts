@@ -113,6 +113,60 @@ export interface KnowledgeDocument {
   content: string;
   createdAt?: string;
   updatedAt: string;
+  folderId?: string;
+  enabled?: boolean;
+  generatedQaStatus?: 'pending' | 'empty' | 'failed' | 'completed' | 'confirmed';
+  candidates?: KnowledgeCandidate[];
+  candidateBatches?: KnowledgeCandidateBatch[];
+  originalStored?: boolean;
+  previewText?: string;
+  demoScenario?: 'success' | 'conflict' | 'processing-failed' | 'generation-failed' | 'empty';
+  processDueAt?: number;
+  generationDueAt?: number;
+  generationAttempts?: number;
+  processingAttempts?: number;
+  processingError?: string;
+}
+
+export interface KnowledgeCandidateBatch {
+  id: string;
+  status: 'confirmed';
+  candidates: KnowledgeCandidate[];
+  confirmedAt: string;
+}
+
+export interface KnowledgeCandidate {
+  id: string;
+  question: string;
+  answerHtml: string;
+  answerText: string;
+  selected: boolean;
+  resolution: 'new' | 'keep' | 'update';
+  existingQaId?: string;
+  status: 'pending' | 'confirmed' | 'skipped';
+}
+
+export interface KnowledgeFolder {
+  id: string;
+  name: string;
+  parentId?: string;
+  level: 1 | 2 | 3;
+  isDefault?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeQa {
+  id: string;
+  question: string;
+  answerHtml: string;
+  answerText: string;
+  folderId: string;
+  enabled: boolean;
+  source: 'manual' | 'file';
+  sourceDocumentId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Skill {
@@ -227,6 +281,8 @@ export interface AppState {
   agents: Agent[];
   teams: Team[];
   documents: KnowledgeDocument[];
+  knowledgeFolders: KnowledgeFolder[];
+  knowledgeQas: KnowledgeQa[];
   skills: Skill[];
   channels: Channel[];
   channelConversations: InboxConversation[];

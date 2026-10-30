@@ -18,7 +18,7 @@ export function NodeForm({ node, draft, readOnly, onChange }: { node: WorkflowNo
     const legacyOption = key === 'source' && value && !value.includes(':') ? options.find((option) => option.value.endsWith(`:${value}`)) : undefined;
     return <Form.Item label={label} required={required}><Select aria-label={label} disabled={readOnly} value={value} placeholder="请选择" options={legacyOption ? [...options, { ...legacyOption, value: value! }] : options} onChange={(next) => set(key, next)} /></Form.Item>;
   };
-  const knowledge = <Form.Item label="知识库"><Select aria-label="知识库" mode="multiple" disabled={readOnly} allowClear placeholder="选择知识库" value={readList<string>(config.knowledgeIds)} options={state.documents.filter((document) => document.status === 'success').map((document) => ({ label: document.name, value: document.id }))} onChange={(value) => list('knowledgeIds', value)} /></Form.Item>;
+  const knowledge = <Form.Item label="知识库"><Select aria-label="知识库" mode="multiple" disabled={readOnly} allowClear placeholder="选择知识库" value={readList<string>(config.knowledgeIds)} options={state.knowledgeFolders.filter((folder) => folder.level === 1).map((folder) => ({ label: folder.name, value: folder.id }))} onChange={(value) => list('knowledgeIds', value)} /></Form.Item>;
   const mappingEditor = (key: string, title: string, required = false, legacy?: string) => {
     const rows = mappings(config, key, legacy);
     const update = (id: string, patch: Partial<Mapping>) => list(key, rows.map((row) => row.id === id ? { ...row, ...patch } : row));

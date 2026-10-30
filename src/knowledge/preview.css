@@ -1,0 +1,32 @@
+.knowledge-preview { position: fixed; inset: 0; z-index: 1200; display: flex; min-width: 0; flex-direction: column; color: var(--color-foreground); background: var(--color-background); }
+.knowledge-preview-header { display: grid; height: 56px; flex: 0 0 auto; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: 0 var(--space-4); border-bottom: 1px solid var(--color-border); }
+.knowledge-preview-header > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.knowledge-preview-header > div { display: flex; gap: var(--space-2); }
+.knowledge-preview-close.arco-btn { color: var(--color-text-2) !important; }
+.knowledge-preview-close.arco-btn:hover { color: var(--color-foreground) !important; background: var(--color-fill-2) !important; }
+.knowledge-preview-canvas { min-height: 0; flex: 1; overflow: auto; padding: var(--space-10) var(--space-6); background: var(--color-surface-container); overscroll-behavior: contain; }
+.knowledge-preview-pdf { display: block; width: min(1120px, 100%); height: 100%; min-height: 320px; margin: 0 auto; background: var(--color-background); border: 1px solid var(--color-border); }
+.knowledge-document-preview, .knowledge-text-preview, .knowledge-sheet-preview { width: min(760px, 100%); margin: 0 auto; padding: 48px 56px; background: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-1); }
+.knowledge-document-preview h1 { margin: 16px 0 28px; font-size: 28px; line-height: 40px; font-weight: 600; }
+.knowledge-document-preview h2 { margin: 28px 0 12px; font-size: 20px; line-height: 30px; font-weight: 600; }
+.knowledge-document-preview p, .knowledge-document-preview li { color: var(--color-text-2); font-size: 15px; line-height: 28px; }
+.knowledge-text-preview { min-height: 520px; white-space: pre-wrap; font: 14px/24px var(--font-mono); }
+.knowledge-sheet-preview { width: min(1040px, 100%); overflow: auto; padding: 0; }
+.knowledge-sheet-summary { padding: var(--space-6); white-space: pre-wrap; }
+.knowledge-sheet-summary h1 { font-size: var(--font-size-title); }
+.knowledge-sheet-preview table { width: 100%; border-collapse: collapse; }
+.knowledge-sheet-preview th, .knowledge-sheet-preview td { min-width: 140px; padding: 12px 16px; text-align: left; white-space: nowrap; border-right: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.knowledge-sheet-preview th { background: var(--color-surface-high); font-weight: 600; }
+.knowledge-preview-error { display: grid; min-height: 420px; place-items: center; align-content: center; gap: var(--space-3); color: var(--color-text-2); text-align: center; }
+.knowledge-preview-error > svg { font-size: 36px; }
+.knowledge-preview-error > div { display: flex; gap: var(--space-2); }
+@media (max-width: 768px) { .knowledge-preview-header { grid-template-columns: 32px minmax(0, 1fr); } .knowledge-preview-header > div { grid-column: 1 / -1; padding-bottom: var(--space-2); } .knowledge-preview-header { height: auto; min-height: 56px; } .knowledge-document-preview, .knowledge-text-preview { padding: 28px 24px; } }
+.knowledge-preview { font: var(--font-size-body)/var(--line-height-body) var(--font-body); outline: none; }
+.knowledge-preview :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.knowledge-preview-header > div { align-items: center; flex-wrap: wrap; }
+.knowledge-document-preview, .knowledge-text-preview, .knowledge-sheet-preview { box-sizing: border-box; overflow-wrap: anywhere; }
+.knowledge-document-preview p { white-space: pre-wrap; }
+.knowledge-document-preview table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.knowledge-document-preview th, .knowledge-document-preview td { padding: var(--space-3); border: 1px solid var(--color-border); text-align: left; }
+.knowledge-document-preview th { background: var(--color-surface-container); }
+.knowledge-sheet-preview table { font-variant-numeric: tabular-nums; }

@@ -62,7 +62,7 @@ export function WorkflowsPage() {
   };
   const boundAgents = (flow: Workflow) => state.agents.filter((agent) => agent.draft.workflowIds?.includes(flow.id) || agent.published?.workflowIds?.includes(flow.id));
   const publish = (flow: Workflow) => {
-    const errors = validateWorkflow(flow.draft, state.documents.filter((doc) => doc.status === 'success').map((doc) => doc.id));
+    const errors = validateWorkflow(flow.draft, state.knowledgeFolders.filter((folder) => folder.level === 1).map((folder) => folder.id));
     if (errors.length) { Modal.confirm({ title: '发布校验未通过', content: <ul>{errors.map((issue, index) => <li key={index}>{issue.nodeId ? `${flow.draft.nodes.find((node) => node.id === issue.nodeId)?.data.label}：` : ''}{issue.message}</li>)}</ul>, okText: '前往配置', onOk: () => navigate(`/workflows/${flow.id}`) }); return; }
     Modal.confirm({ title: '发布工作流？', content: `发布「${flow.draft.name}」后，已绑定的 AI Agent 将使用本次发布内容。`, okText: '确认发布', onOk: () => { dispatch({ type: 'workflow.publish', id: flow.id }); Message.success('工作流已发布'); } });
   };
