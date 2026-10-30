@@ -31,8 +31,10 @@ type Action =
   | { type: 'document.update'; id: string; patch: Partial<KnowledgeDocument> }
   | { type: 'document.delete'; id: string }
   | { type: 'knowledge.folder.save'; folder: KnowledgeFolder }
+  | { type: 'knowledge.folder.move'; id: string; parentId: string }
   | { type: 'knowledge.folder.delete'; id: string }
   | { type: 'knowledge.qa.save'; qa: KnowledgeQa }
+  | { type: 'knowledge.resources.move'; resource: 'qa' | 'file'; ids: string[]; folderId: string }
   | { type: 'knowledge.qa.toggle'; id: string; enabled: boolean }
   | { type: 'knowledge.qa.delete'; ids: string[] }
   | { type: 'skill.add'; skill: Skill }
@@ -315,12 +317,26 @@ function reducer(state: AppState, action: Action): AppState {
     case 'document.add': return { ...state, documents: [action.document, ...state.documents] };
     case 'document.update': return { ...state, documents: state.documents.map((item) => item.id === action.id ? { ...item, ...action.patch, updatedAt: now() } : item) };
     case 'document.delete': {
-      return { ...state, documents: state.documents.filter((item) => item.id !== action.id), knowledgeQas: state.knowledgeQas.filter((item) => item.sourceDocumentId !== action.id) };
+      return { ...state, documents: state.documents.filter((item) => item.id !== action.id) };
     }
     case 'knowledge.folder.save': {
       const siblingDuplicate = state.knowledgeFolders.some((item) => item.id !== action.folder.id && item.parentId === action.folder.parentId && item.name.trim().toLowerCase() === action.folder.name.trim().toLowerCase());
       if (siblingDuplicate) return state;
       return { ...state, knowledgeFolders: state.knowledgeFolders.some((item) => item.id === action.folder.id) ? state.knowledgeFolders.map((item) => item.id === action.folder.id ? action.folder : item) : [...state.knowledgeFolders, action.folder] };
+    }
+    case 'knowledge.folder.move': {
+      const folder = state.knowledgeFolders.find((item) => item.id === action.id);
+      const parent = state.knowledgeFolders.find((item) => item.id === action.parentId);
+      const rootOf = (id: string) => { let current = state.knowledgeFolders.find((item) => item.id === id); while (current?.parentId) current = state.knowledgeFolders.find((item) => item.id === current!.parentId); return current?.id; };
+      const nestedIds = new Set<string>([action.id]);
+      let changed = true;
+      while (changed) { changed = false; state.knowledgeFolders.forEach((item) => { if (item.parentId && nestedIds.has(item.parentId) && !nestedIds.has(item.id)) { nestedIds.add(item.id); changed = true; } }); }
+      const nextLevel = parent ? parent.level + 1 : 0;
+      const levelOffset = folder ? nextLevel - folder.level : 0;
+      const validParent = Boolean(folder && parent && !folder.isDefault && folder.level > 1 && parent.level < 3 && rootOf(folder.id) === rootOf(parent.id) && !nestedIds.has(parent.id) && [...nestedIds].every((id) => (state.knowledgeFolders.find((item) => item.id === id)?.level || 0) + levelOffset <= 3));
+      const duplicate = Boolean(folder && state.knowledgeFolders.some((item) => item.id !== folder.id && item.parentId === action.parentId && item.name.trim().toLowerCase() === folder.name.trim().toLowerCase()));
+      if (!validParent || duplicate || folder?.parentId === action.parentId) return state;
+      return { ...state, knowledgeFolders: state.knowledgeFolders.map((item) => nestedIds.has(item.id) ? { ...item, parentId: item.id === action.id ? action.parentId : item.parentId, level: (item.level + levelOffset) as KnowledgeFolder['level'], updatedAt: now() } : item) };
     }
     case 'knowledge.folder.delete': {
       const target = state.knowledgeFolders.find((item) => item.id === action.id);
@@ -346,6 +362,20 @@ function reducer(state: AppState, action: Action): AppState {
       };
     }
     case 'knowledge.qa.save': return { ...state, knowledgeQas: state.knowledgeQas.some((item) => item.id === action.qa.id) ? state.knowledgeQas.map((item) => item.id === action.qa.id ? action.qa : item) : [action.qa, ...state.knowledgeQas] };
+    case 'knowledge.resources.move': {
+      const target = state.knowledgeFolders.find((folder) => folder.id === action.folderId);
+      const rootOf = (id?: string) => { let current = state.knowledgeFolders.find((folder) => folder.id === id); while (current?.parentId) current = state.knowledgeFolders.find((folder) => folder.id === current!.parentId); return current?.id; };
+      if (action.resource === 'qa') {
+        const items = state.knowledgeQas.filter((item) => action.ids.includes(item.id));
+        const valid = Boolean(target && target.level > 1 && items.length === action.ids.length && items.length && items.every((item) => rootOf(item.folderId) === rootOf(target.id)));
+        if (!valid) return state;
+        return { ...state, knowledgeQas: state.knowledgeQas.map((item) => action.ids.includes(item.id) ? { ...item, folderId: action.folderId, updatedAt: now() } : item) };
+      }
+      const items = state.documents.filter((item) => action.ids.includes(item.id));
+      const valid = Boolean(target && target.level > 1 && items.length === action.ids.length && items.length && items.every((item) => rootOf(item.folderId) === rootOf(target.id) && item.status === 'success'));
+      if (!valid) return state;
+      return { ...state, documents: state.documents.map((item) => action.ids.includes(item.id) ? { ...item, folderId: action.folderId, updatedAt: now() } : item) };
+    }
     case 'knowledge.qa.toggle': return { ...state, knowledgeQas: state.knowledgeQas.map((item) => item.id === action.id ? { ...item, enabled: action.enabled, updatedAt: now() } : item) };
     case 'knowledge.qa.delete': return { ...state, knowledgeQas: state.knowledgeQas.filter((item) => !action.ids.includes(item.id)) };
     case 'skill.add': return { ...state, skills: [action.skill, ...state.skills] };

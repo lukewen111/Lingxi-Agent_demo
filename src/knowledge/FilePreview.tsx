@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Spin, Message, Tabs } from '@arco-design/web-react';
-import { IconClose, IconDownload, IconFile, IconRefresh } from '@arco-design/web-react/icon';
+import { IconClose, IconDownload, IconFile, IconRefresh, IconUpload } from '@arco-design/web-react/icon';
 import { Button } from '../components/ui';
 import type { KnowledgeDocument } from '../types';
 import { downloadOriginal, getOriginal } from './fileStorage';
 import './preview.css';
 
-export function FilePreview({ document, onClose }: { document: KnowledgeDocument; onClose: () => void }) {
+export function FilePreview({ document, onClose, onUpdate }: { document: KnowledgeDocument; onClose: () => void; onUpdate?: (document: KnowledgeDocument) => void }) {
   const [blob, setBlob] = useState<Blob>(); const [url, setUrl] = useState(''); const [text, setText] = useState<string>(); const [failed, setFailed] = useState(false); const [sheet, setSheet] = useState('商品库存');
   const [loading, setLoading] = useState(true); const [attempt, setAttempt] = useState(0); const [downloading, setDownloading] = useState(false);
   const panel = useRef<HTMLDivElement>(null); const close = useRef(onClose); close.current = onClose;
@@ -54,7 +54,7 @@ export function FilePreview({ document, onClose }: { document: KnowledgeDocument
   const markdown = useMemo(() => source.replace(/\r\n?/g, '\n').split('\n'), [source]);
   const filename = document.name.toLowerCase().endsWith(`.${type.toLowerCase()}`) ? document.name : `${document.name}.${type.toLowerCase()}`;
   return createPortal(<div className="knowledge-preview" role="dialog" aria-modal="true" aria-label={`${filename} 文件预览`} ref={panel} tabIndex={-1}>
-    <header className="knowledge-preview-header"><Button type="text" className="knowledge-preview-close" icon={<IconClose />} aria-label="关闭预览" onClick={onClose} /><strong title={filename}>{filename}</strong>{(blob || document.originalStored || failed) && <div><Button icon={<IconDownload />} loading={downloading} onClick={() => void download()}>下载原文件</Button></div>}</header>
+    <header className="knowledge-preview-header"><Button type="text" className="knowledge-preview-close" icon={<IconClose />} aria-label="关闭预览" onClick={onClose} /><strong title={filename}>{filename}</strong>{(onUpdate || blob || document.originalStored || failed) && <div>{onUpdate && <Button icon={<IconUpload />} onClick={() => onUpdate(document)}>更新文件</Button>}{(blob || document.originalStored || failed) && <Button icon={<IconDownload />} loading={downloading} onClick={() => void download()}>下载原文件</Button>}</div>}</header>
     <main className="knowledge-preview-canvas" aria-busy={loading}>
       {loading && <div className="knowledge-preview-error" role="status"><Spin /><span>正在加载预览…</span></div>}
       {failed ? <div className="knowledge-preview-error" role="alert"><IconFile /><strong>文件预览加载失败</strong><span>可以重新加载或下载原文件。</span><div><Button icon={<IconRefresh />} onClick={() => setAttempt((value) => value + 1)}>重新加载</Button><Button type="primary" icon={<IconDownload />} loading={downloading} onClick={() => void download()}>下载原文件</Button></div></div> : null}

@@ -47,10 +47,14 @@ function generatedCandidates(document: KnowledgeDocument, existingQas: readonly 
     )];
   }
 
-  const baseCandidates = [
-    candidate(document.id, 1, '订单提交后可以修改收货地址吗？', '订单进入发货流程前，可以联系在线客服申请修改收货地址；已经发货的订单无法修改。'),
-    candidate(document.id, 2, '电子发票如何申请？', '进入订单详情后选择“申请发票”，填写发票抬头和税号并提交即可。'),
-  ];
+  const title = (document.name || document.source).replace(/\.[^.]+$/, '').trim() || '该文件';
+  const themes = ['核心内容', '适用范围', '目标对象', '前置条件', '关键流程', '操作步骤', '时间要求', '注意事项', '异常处理', '责任归属', '输入资料', '输出结果', '风险控制', '常见问题', '变更规则', '权限限制', '数据要求', '质量标准', '复核机制', '反馈处理', '关联流程', '有效范围', '更新频率', '支持边界'];
+  const baseCandidates = themes.map((theme, index) => candidate(
+    document.id,
+    index + 1,
+    `《${title}》的${theme}是什么？`,
+    `《${title}》已完成解析；关于${theme}的具体说明，请以该文件中的内容为准。`,
+  ));
 
   const seen = new Set<string>();
   return baseCandidates.flatMap((item) => {
