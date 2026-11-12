@@ -21,6 +21,7 @@ import { TeamDetailPage, TeamsPage } from './pages/TeamsPage';
 import { AgentKnowledgeFolders } from './components/AgentKnowledgeFolders';
 import { InboxPage } from './pages/InboxPage';
 import { ChannelClientPage } from './pages/ChannelClientPage';
+import { OverviewPage } from './pages/OverviewPage';
 import { RichTextEditor } from './components/RichTextEditor';
 import { AppProvider, updateFlow, updateGuards, useAppStore } from './store';
 import { now } from './mockData';
@@ -267,7 +268,7 @@ void VariablesSection;
 void MonitorSection;
 
 function ShellRoutes() {
-  return <AppShell><Routes><Route path="/" element={<Navigate to="/inbox" replace />} /><Route path="/livechat/dashboard" element={<LivechatDashboardPage />} /><Route path="/ops" element={<Navigate to="/ops/tenants" replace />} /><Route path="/ops/tenants" element={<OpsTenantManagementPage />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgeCenterPage />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<Navigate to="/settings/chat-timeout" replace />} /><Route path="/settings/chat-timeout" element={<SettingsPage />} /><Route path="/settings/members" element={<UserManagementPage />} /><Route path="/settings/roles" element={<RoleManagementPage />} /><Route path="*" element={<Navigate to="/inbox" replace />} /></Routes></AppShell>;
+  return <AppShell><Routes><Route path="/" element={<Navigate to="/inbox" replace />} /><Route path="/livechat/dashboard" element={<LivechatDashboardPage />} /><Route path="/ops" element={<Navigate to="/ops/tenants" replace />} /><Route path="/ops/tenants" element={<OpsTenantManagementPage />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgeCenterPage />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<Navigate to="/settings/chat-timeout" replace />} /><Route path="/settings/chat-timeout" element={<SettingsPage />} /><Route path="/settings/members" element={<UserManagementPage />} /><Route path="/settings/roles" element={<RoleManagementPage />} /><Route path="/overview" element={<OverviewPage />} /><Route path="*" element={<Navigate to="/inbox" replace />} /></Routes></AppShell>;
 }
 
 function AppRoutes() {

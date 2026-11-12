@@ -1,5 +1,5 @@
 import { Button, Layout, Menu, Popover } from './ui';
-import { IconApps, IconBook, IconCheck, IconDown, IconMenuFold, IconMenuUnfold, IconMessage, IconPoweroff, IconRobot, IconSettings } from '@arco-design/web-react/icon';
+import { IconApps, IconBook, IconCheck, IconDashboard, IconDown, IconMenuFold, IconMenuUnfold, IconMessage, IconPoweroff, IconRobot, IconSettings } from '@arco-design/web-react/icon';
 import { RiGlobalLine } from '@remixicon/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ const NODE_ICONS: Record<string, () => React.ReactNode> = {
   agents: () => <IconRobot />,
   'resource-center': () => <IconBook />,
   channels: () => <IconApps />,
+  overview: () => <IconDashboard />,
 };
 
 const workspaceOptions: { key: WorkspaceMode; labelKey: 'aiAgents' | 'livechat' }[] = [
@@ -65,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [isOps, location.pathname, navigate, state.ui.lastAgentsPath, tenantAccount]);
 
-  const selected = useMemo(() => location.pathname.startsWith('/inbox') ? 'inbox' : location.pathname.startsWith('/agents') ? 'agents' : location.pathname.startsWith('/knowledge') ? 'knowledge' : location.pathname.startsWith('/workflows') ? 'workflows' : location.pathname.startsWith('/channels') ? 'channels' : location.pathname.startsWith('/settings') ? 'settings' : '', [location.pathname]);
+  const selected = useMemo(() => location.pathname.startsWith('/inbox') ? 'inbox' : location.pathname.startsWith('/agents') ? 'agents' : location.pathname.startsWith('/knowledge') ? 'knowledge' : location.pathname.startsWith('/workflows') ? 'workflows' : location.pathname.startsWith('/channels') ? 'channels' : location.pathname.startsWith('/settings') ? 'settings' : location.pathname.startsWith('/overview') ? 'overview' : '', [location.pathname]);
   const switchWorkspace = (mode: WorkspaceMode) => {
     if (tenantAccount && !tenantAccount.workspacePermissions.includes(mode)) return;
     setWorkspaceOpen(false);

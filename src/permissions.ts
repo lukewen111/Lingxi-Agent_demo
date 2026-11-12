@@ -34,6 +34,7 @@ export const MENU_TREE: MenuNode[] = [
       { key: 'settings:chat-timeout', label: '聊天超时', route: '/settings/chat-timeout' },
     ],
   },
+  { key: 'overview', label: '总览', route: '/overview' },
 ];
 
 const collectLeaves = (nodes: MenuNode[]): MenuNode[] => nodes.flatMap((node) => (node.children?.length ? collectLeaves(node.children) : [node]));
@@ -51,6 +52,7 @@ export const routeMenuKey = (pathname: string): string | null => {
   if (pathname.startsWith('/settings/members')) return 'settings:members';
   if (pathname.startsWith('/settings/roles')) return 'settings:roles';
   if (pathname.startsWith('/settings')) return 'settings:chat-timeout';
+  if (pathname.startsWith('/overview')) return 'overview';
   return null;
 };
 
