@@ -1643,7 +1643,7 @@ button.channel-name-cell.is-link:hover strong { color: var(--color-primary); }
 .overview-records-tabs .arco-tabs-header { margin-bottom: 0; }
 .overview-records-tabs .arco-tabs-header-title { margin-right: var(--space-5); padding: var(--space-2) 0; }
 .overview-records-tabs .arco-tabs-content { display: none; }
-.overview-records-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.overview-records-chips { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-2); }
 .overview-records-chip { display: inline-flex; height: 26px; align-items: center; padding: 0 12px; color: var(--color-text-2); background: var(--color-background); border: 1px solid var(--color-border); border-radius: 999px; font-size: var(--font-size-small); line-height: 1; cursor: pointer; transition: color .15s ease, border-color .15s ease, background-color .15s ease; }
 .overview-records-chip:hover { color: var(--color-primary); border-color: var(--color-primary); }
 .overview-records-chip.is-active { color: var(--color-primary); background: var(--color-primary-bg); border-color: var(--color-primary); font-weight: 500; }
