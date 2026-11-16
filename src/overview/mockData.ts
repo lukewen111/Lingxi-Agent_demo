@@ -1,6 +1,13 @@
-import type { OverviewSession } from './analytics';
+import type { OverviewSession, SessionOutcome } from './analytics';
+import mockPaymentReceiptUrl from '../assets/mock-payment-receipt.png';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** 访客池：同一访客可产生多次会话，用于弹窗内的历史会话浏览 */
+const VISITORS = Array.from({ length: 16 }, (_, index) => ({
+  id: `overview-visitor-${String(index + 1).padStart(2, '0')}`,
+  name: `Visitor #${102400 + index * 137}`,
+}));
 
 type AgentProfile = {
   id: string;
@@ -153,6 +160,13 @@ const AGENT_PROFILES: AgentProfile[] = [
   },
 ];
 
+/** 总览会话在统计字段之外补充会话记录弹窗需要的展示信息 */
+export type OverviewSessionRecord = OverviewSession & {
+  updatedAt: string;
+  visitorId: string;
+  customerName: string;
+};
+
 const mulberry32 = (seed: number) => {
   let state = seed;
   return () => {
@@ -182,11 +196,11 @@ const startOfDay = (date: Date) => {
   return next;
 };
 
-const buildSessions = (): OverviewSession[] => {
+const buildSessions = (): OverviewSessionRecord[] => {
   const random = mulberry32(20261112);
   const today = startOfDay(new Date());
   const now = new Date();
-  const sessions: OverviewSession[] = [];
+  const sessions: OverviewSessionRecord[] = [];
   let sequence = 0;
 
   const profileMap = new Map(AGENT_PROFILES.map((profile) => [profile.id, profile]));
@@ -220,15 +234,21 @@ const buildSessions = (): OverviewSession[] => {
     if (createdAt.getTime() > now.getTime()) createdAt.setTime(now.getTime() - Math.floor(random() * 3600 * 1000));
     const endedRate = isToday ? profile.endedRate * 0.8 : dayOffset <= 1 ? profile.endedRate * 0.9 : profile.endedRate;
     const ended = random() < endedRate;
+    const duration = (ended ? 9 + Math.floor(random() * 26) : 2 + Math.floor(random() * 7)) * 60 * 1000;
+    const updatedAt = new Date(Math.min(createdAt.getTime() + duration, now.getTime()));
     sequence += 1;
+    const visitor = VISITORS[Math.floor(random() * VISITORS.length)];
     sessions.push({
       id: `overview-session-${sequence}`,
       createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
       agentId,
       channelId,
+      visitorId: visitor.id,
+      customerName: visitor.name,
       ended,
-      aiResolved: false,
-      transferred: false,
+      valid: true,
+      outcome: null,
     });
   };
 
@@ -282,8 +302,13 @@ const buildSessions = (): OverviewSession[] => {
     for (let index = count; index < 2; index += 1) append(0, pick(random, liveAgentWeights), channelId);
   });
 
-  // 按天定额：先定转人工（与结束状态无关），再从“已结束且未转人工”中定额判定 AI 解决
-  const groups = new Map<string, OverviewSession[]>();
+  // 无效会话只出现在已结束会话中（约 10%–15%），且不参与转人工与 AI 解决判定
+  sessions.forEach((session) => {
+    if (session.ended && random() < 0.12) session.valid = false;
+  });
+
+  // 按天定额：先定转人工，再从“已结束、有效且未转人工”中定额判定 AI 解决，剩余为未解决
+  const groups = new Map<string, OverviewSessionRecord[]>();
   sessions.forEach((session) => {
     const created = new Date(session.createdAt);
     const key = `${created.getFullYear()}-${created.getMonth()}-${created.getDate()}`;
@@ -295,23 +320,175 @@ const buildSessions = (): OverviewSession[] => {
   groups.forEach((list) => {
     const dayOffset = Math.round((today.getTime() - startOfDay(new Date(list[0].createdAt)).getTime()) / DAY_MS);
     const dayProfile = dayProfiles[Math.min(179, Math.max(0, dayOffset))];
-    const transferCount = Math.round(dayProfile.transfer * list.length);
-    list
+    const transferCandidates = list.filter((session) => session.ended && session.valid);
+    const transferCount = Math.round(dayProfile.transfer * transferCandidates.length);
+    transferCandidates
       .map((session) => ({ session, order: -Math.log(1 - random()) / transferWeightOf(session) }))
       .sort((a, b) => a.order - b.order)
       .slice(0, transferCount)
-      .forEach(({ session }) => { session.transferred = true; });
+      .forEach(({ session }) => { session.outcome = 'handoff'; });
 
-    const eligible = list.filter((session) => session.ended && !session.transferred);
+    const eligible = list.filter((session) => session.ended && session.valid && session.outcome === null);
     const resolveCount = Math.round(dayProfile.resolve * eligible.length);
     eligible
       .map((session) => ({ session, order: -Math.log(1 - random()) / resolveWeightOf(session) }))
       .sort((a, b) => a.order - b.order)
       .slice(0, resolveCount)
-      .forEach(({ session }) => { session.aiResolved = true; });
+      .forEach(({ session }) => { session.outcome = 'resolved'; });
+  });
+
+  sessions.forEach((session) => {
+    if (session.ended && session.valid && session.outcome === null) session.outcome = 'unresolved';
+    if (!session.ended) session.outcome = null;
+    if (!session.valid) session.outcome = null;
   });
 
   return sessions.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 };
 
-export const OVERVIEW_SESSIONS: OverviewSession[] = buildSessions();
+export const OVERVIEW_SESSIONS: OverviewSessionRecord[] = buildSessions();
+
+const AGENT_TOPICS: Record<string, { question: string; answer: string }> = {
+  'agent-support': {
+    question: '您好，我的充值订单还没有到账，可以帮我查一下吗？',
+    answer: '可以的，请提供订单号，我会核对支付渠道的返回状态和入账记录。',
+  },
+  'agent-sales': {
+    question: '我们团队想接入企业版，想先了解支持哪些能力和开通流程。',
+    answer: '企业版支持多 Agent 协作、统一渠道接入和数据看板，我可以先为您介绍开通流程。',
+  },
+  'agent-logistics': {
+    question: '这批订单的物流轨迹一直没有更新，麻烦帮我确认一下。',
+    answer: '我已记录订单号，正在向物流渠道查询最新轨迹和预计送达时间。',
+  },
+  'agent-vip': {
+    question: '我的会员权益今天没有更新，想确认一下原因。',
+    answer: '我已查到您的会员等级，正在核对今日权益发放记录和生效时间。',
+  },
+  'agent-refund': {
+    question: '这笔订单我想申请退款，需要提供哪些材料？',
+    answer: '退款需要订单号和支付凭证，我也可以先帮您确认当前订单是否满足退款条件。',
+  },
+  'agent-after-sales': {
+    question: '我的账户登录不上，提示需要重新验证身份。',
+    answer: '我会先核对账户状态和最近登录记录，再引导您完成身份验证。',
+  },
+};
+
+const DEFAULT_TOPIC = {
+  question: '您好，我想咨询一下账户最近的使用情况。',
+  answer: '可以的，请提供账户信息，我会帮您核对最近的记录。',
+};
+
+export type OverviewChatMessage = {
+  id: string;
+  role: 'customer' | 'agent' | 'system';
+  content: string;
+  sentAt: string;
+  type?: 'text' | 'image';
+  imageUrl?: string;
+};
+
+/** 无效会话的三类素材：只打招呼、测试误触、广告无关内容，均无真实业务诉求 */
+const INVALID_MATERIALS = [
+  { text: '在吗', closing: '会话已关闭\n由于 15 分钟无消息互动' },
+  { text: '测试一下', closing: '会话结束' },
+  { text: '加个微信，有内部优惠', closing: '会话结束' },
+];
+
+const messageCache = new Map<string, OverviewChatMessage[]>();
+
+/** 按处理结果定义生成只读聊天记录，供总览「会话记录」弹窗演示使用 */
+export const buildSessionMessages = (session: OverviewSessionRecord): OverviewChatMessage[] => {
+  const cached = messageCache.get(session.id);
+  if (cached) return cached;
+
+  const start = new Date(session.createdAt).getTime();
+  const span = Math.max(new Date(session.updatedAt).getTime() - start, 60 * 1000);
+  const at = (ratio: number) => new Date(start + Math.round(span * ratio)).toISOString();
+  const topic = AGENT_TOPICS[session.agentId] ?? DEFAULT_TOPIC;
+  let index = 1;
+  const nextId = () => `${session.id}-message-${index++}`;
+  const messages: OverviewChatMessage[] = [
+    { id: nextId(), role: 'system', content: '会话开始', sentAt: session.createdAt },
+  ];
+  const sequence = Number(session.id.split('-').pop());
+  const finish = () => {
+    messageCache.set(session.id, messages);
+    return messages;
+  };
+
+  // 会话进行中：只展示已发生的问答，不做结论
+  if (!session.ended) {
+    messages.push(
+      { id: nextId(), role: 'customer', content: topic.question, sentAt: at(0.3) },
+      { id: nextId(), role: 'agent', content: topic.answer, sentAt: at(0.6) },
+    );
+    return finish();
+  }
+
+  // 无效：只有打招呼、测试误触或广告，没有真实业务诉求
+  if (!session.valid) {
+    const material = INVALID_MATERIALS[sequence % INVALID_MATERIALS.length];
+    if (sequence % 2 === 0) {
+      messages.push({ id: nextId(), role: 'agent', content: '您好，我是 AI 客服，请描述您想咨询的问题。', sentAt: at(0.3) });
+    }
+    messages.push({ id: nextId(), role: 'customer', content: material.text, sentAt: at(0.55) });
+    messages.push({ id: nextId(), role: 'system', content: material.closing, sentAt: session.updatedAt });
+    return finish();
+  }
+
+  if (session.outcome === 'handoff') {
+    messages.push(
+      { id: nextId(), role: 'customer', content: topic.question, sentAt: at(0.12) },
+      { id: nextId(), role: 'agent', content: topic.answer, sentAt: at(0.32) },
+      { id: nextId(), role: 'customer', content: '这个问题比较着急，能帮我转人工处理吗？', sentAt: at(0.55) },
+      { id: nextId(), role: 'agent', content: '可以，我已整理好当前问题信息，正在为您转接人工客服。', sentAt: at(0.75) },
+      { id: nextId(), role: 'system', content: '已转接给人工客服', sentAt: session.updatedAt },
+    );
+    return finish();
+  }
+
+  if (session.outcome === 'resolved') {
+    messages.push(
+      { id: nextId(), role: 'customer', content: topic.question, sentAt: at(0.1) },
+      { id: nextId(), role: 'agent', content: topic.answer, sentAt: at(0.26) },
+    );
+    // 部分已解决会话包含客户上传的支付凭证截图，用于演示图片消息（本地资源，不依赖外网）
+    if (sequence % 5 === 0) {
+      messages.push({
+        id: nextId(),
+        role: 'customer',
+        type: 'image',
+        imageUrl: mockPaymentReceiptUrl,
+        content: '我上传一下支付凭证截图',
+        sentAt: at(0.42),
+      });
+    }
+    messages.push(
+      { id: nextId(), role: 'customer', content: '好的，麻烦帮我确认一下具体处理结果。', sentAt: at(0.56) },
+      { id: nextId(), role: 'agent', content: '已为您核对并处理完成，处理结果和注意事项已同步到会话中。', sentAt: at(0.72) },
+      { id: nextId(), role: 'customer', content: '收到了，谢谢。', sentAt: at(0.86) },
+      { id: nextId(), role: 'system', content: '会话结束', sentAt: session.updatedAt },
+    );
+    return finish();
+  }
+
+  messages.push(
+    { id: nextId(), role: 'customer', content: topic.question, sentAt: at(0.15) },
+    { id: nextId(), role: 'customer', content: '我又核对了一遍，还是没能解决。', sentAt: at(0.38) },
+    { id: nextId(), role: 'agent', content: '当前提供的信息不足，暂时无法在线处理，建议您稍后补充订单凭证后再来咨询。', sentAt: at(0.6) },
+    { id: nextId(), role: 'customer', content: '好的，我先去核对一下资料，稍后再回来。', sentAt: at(0.82) },
+    { id: nextId(), role: 'system', content: '会话结束', sentAt: session.updatedAt },
+  );
+  return finish();
+};
+
+/** 列表摘要与聊天内容同源：取最后一条非系统消息，图片消息带「图片：」前缀 */
+export const lastMessagePreview = (session: OverviewSessionRecord): string => {
+  const latest = [...buildSessionMessages(session)].reverse().find((message) => message.role !== 'system');
+  if (!latest) return '';
+  return latest.type === 'image' ? `图片：${latest.content}` : latest.content;
+};
+
+export const outcomeOf = (session: OverviewSessionRecord): SessionOutcome => (session.ended && session.valid ? session.outcome : null);

@@ -26,6 +26,7 @@ import {
 } from '@arco-design/web-react/icon';
 import { Button, Empty, Input, Popover, Select } from '../components/ui';
 import { ChannelTypeIcon } from '../components/ChannelTypeIcon';
+import { ChatMessageRow, ConversationRow } from '../components/InboxConversationParts';
 import { MemberAvatar } from '../components/MemberAvatar';
 import { inboxAgents, inboxChannels, inboxConversations } from '../inboxMockData';
 import { currentMember } from '../permissions';
@@ -93,16 +94,6 @@ function formatMessageTime(value: string) {
   const time = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
   const sameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
   return sameDay ? time : `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
-}
-
-function initials(value: string) {
-  if (value.startsWith('Visitor')) return '访';
-  return value.slice(0, 1).toUpperCase();
-}
-
-function avatarTone(value: string) {
-  const seed = Array.from(value).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return `tone-${seed % 6}`;
 }
 
 function getStatusForConversation(conversation: InboxConversation): InboxStatus {
@@ -701,23 +692,18 @@ export function InboxPage() {
           {listState === 'loading' && <ListSkeleton />}
           {listState === 'error' && <div className="inbox-centered-state"><IconExclamationCircle /><strong>会话加载失败</strong><span>请检查网络后重新加载</span><Button type="primary" icon={<IconRefresh />} onClick={retryList}>重新加载</Button></div>}
           {listState === 'ready' && !filteredConversations.length && <div className="inbox-centered-state"><Empty description={emptyText}>{(hasActiveDateFilter || filterAgentIds.length > 0 || channelIds.length > 0) && <Button type="text" onClick={clearAppliedFilters}>重置筛选</Button>}</Empty></div>}
-          {listState === 'ready' && filteredConversations.map((conversation) => <button
-            type="button"
+          {listState === 'ready' && filteredConversations.map((conversation) => <ConversationRow
             key={conversation.id}
-            ref={(node) => { conversationRefs.current[conversation.id] = node; }}
-            className={`inbox-conversation-item ${selectedId === conversation.id ? 'is-active' : ''}`}
-            onClick={() => selectConversation(conversation.id)}
-          >
-            <span className={`inbox-customer-avatar ${avatarTone(conversation.customerName)}`}>{initials(conversation.customerName)}</span>
-            <span className="inbox-conversation-copy">
-              <span className="inbox-conversation-topline"><strong>{conversation.customerName}</strong><time>{formatListTime(conversation.updatedAt)}</time></span>
-              <span className="inbox-latest-message">{getLatestMessage(conversation)}</span>
-              <span className="inbox-conversation-meta">
-                <span><ChannelLogo type={conversation.channelType} />{conversation.channelName}</span>
-                <span><IconRobot />{conversation.agentName}</span>
-              </span>
-            </span>
-          </button>)}
+            rowRef={(node) => { conversationRefs.current[conversation.id] = node; }}
+            customerName={conversation.customerName}
+            time={formatListTime(conversation.updatedAt)}
+            preview={getLatestMessage(conversation)}
+            channelType={conversation.channelType}
+            channelName={conversation.channelName}
+            agentName={conversation.agentName}
+            active={selectedId === conversation.id}
+            onSelect={() => selectConversation(conversation.id)}
+          />)}
         </div>
       </section>
 
@@ -731,28 +717,26 @@ export function InboxPage() {
             {messageState === 'error' && <div className="inbox-centered-state"><IconExclamationCircle /><strong>消息加载失败</strong><span>当前会话暂时无法读取</span><Button type="primary" icon={<IconRefresh />} onClick={retryMessages}>重新加载</Button></div>}
             {messageState === 'ready' && <>
               {previousHistoryConversation && messageEdge.top && <button type="button" className="inbox-thread-jump is-top" onClick={() => switchHistory(previousHistoryConversation)}><IconArrowUp /> 上一个会话</button>}
-              {selectedConversation.messages.map((message) => message.role === 'system'
-                ? <div className="inbox-system-message" key={message.id}><span>{message.content} · {formatMessageTime(message.sentAt)}</span></div>
-                : <div className={`inbox-message-row is-${message.role}`} key={message.id}>
-                  {message.role === 'customer' && <span className={`inbox-customer-avatar is-message ${avatarTone(selectedConversation.customerName)}`}>{initials(selectedConversation.customerName)}</span>}
-                  <div className="inbox-message-content">
-                    <span className="inbox-message-author">{message.role === 'agent' ? currentUsername : selectedConversation.customerName}</span>
-                    {message.type === 'image'
-                      ? <figure className="inbox-message-image-card">
-                          {(message.fileUrl || message.imageUrl) && <button type="button" className="inbox-message-image-trigger" aria-label="全屏预览图片" onClick={() => setPreviewImage({ src: message.fileUrl || message.imageUrl || '', alt: message.content })}><img src={message.fileUrl || message.imageUrl} alt={message.content} /><span aria-hidden="true"><IconEye /></span></button>}
-                          <figcaption>{message.content}</figcaption>
-                        </figure>
-                      : message.type === 'video' && message.fileUrl
-                        ? <video className="inbox-message-media" src={message.fileUrl} controls />
-                        : message.type === 'audio' && message.fileUrl
-                          ? <audio className="inbox-message-audio" src={message.fileUrl} controls />
-                          : message.type === 'file'
-                            ? <div className="inbox-message-file"><span className="inbox-message-file-icon"><IconFile /></span><span>{message.fileUrl ? <a href={message.fileUrl} download={message.fileName || message.content}>{message.fileName || message.content}</a> : <strong>{message.fileName || message.content}</strong>}<small>{message.fileSize ? `${Math.ceil(message.fileSize / 1024)} KB` : ''}</small></span></div>
-                      : <div className="inbox-message-bubble">{message.content}</div>}
-                    <time>{formatMessageTime(message.sentAt)}</time>
-                  </div>
-                  {message.role === 'agent' && <MemberAvatar username={currentUsername} size={30} />}
-                </div>)}
+              {selectedConversation.messages.map((message) => <ChatMessageRow
+                key={message.id}
+                message={message}
+                customerName={selectedConversation.customerName}
+                agentName={currentUsername}
+                time={formatMessageTime(message.sentAt)}
+                agentAvatar={<MemberAvatar username={currentUsername} size={30} />}
+                renderBody={(current) => current.type === 'image'
+                  ? <figure className="inbox-message-image-card">
+                      {(current.fileUrl || current.imageUrl) && <button type="button" className="inbox-message-image-trigger" aria-label="全屏预览图片" onClick={() => setPreviewImage({ src: current.fileUrl || current.imageUrl || '', alt: current.content })}><img src={current.fileUrl || current.imageUrl} alt={current.content} /><span aria-hidden="true"><IconEye /></span></button>}
+                      <figcaption>{current.content}</figcaption>
+                    </figure>
+                  : current.type === 'video' && current.fileUrl
+                    ? <video className="inbox-message-media" src={current.fileUrl} controls />
+                    : current.type === 'audio' && current.fileUrl
+                      ? <audio className="inbox-message-audio" src={current.fileUrl} controls />
+                      : current.type === 'file'
+                        ? <div className="inbox-message-file"><span className="inbox-message-file-icon"><IconFile /></span><span>{current.fileUrl ? <a href={current.fileUrl} download={current.fileName || current.content}>{current.fileName || current.content}</a> : <strong>{current.fileName || current.content}</strong>}<small>{current.fileSize ? `${Math.ceil(current.fileSize / 1024)} KB` : ''}</small></span></div>
+                        : <div className="inbox-message-bubble">{current.content}</div>}
+              />)}
               {nextHistoryConversation && messageEdge.bottom && <button type="button" className="inbox-thread-jump is-bottom" onClick={() => switchHistory(nextHistoryConversation)}><IconArrowDown /> 下一个会话</button>}
             </>}
           </div>

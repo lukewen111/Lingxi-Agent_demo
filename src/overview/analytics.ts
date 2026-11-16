@@ -1,11 +1,14 @@
+export type SessionOutcome = 'resolved' | 'unresolved' | 'handoff' | null;
+
 export type OverviewSession = {
   id: string;
   createdAt: string;
   agentId: string;
   channelId: string;
   ended: boolean;
-  aiResolved: boolean;
-  transferred: boolean;
+  /** 有效会话标记；无效会话只出现在已结束会话中，且不参与解决与转人工判定 */
+  valid: boolean;
+  outcome: SessionOutcome;
 };
 
 export type TimeRangeKey = 'today' | '7d' | '30d' | 'custom';
@@ -22,7 +25,8 @@ export type OverviewMetric = 'conversations' | 'aiResolved' | 'transfer';
 
 export type TrendGranularity = 'hour' | 'day' | 'week' | 'month';
 
-export type OverviewTotals = { n: number; e: number; r: number; t: number };
+/** n：已结束正式会话 N；v：有效会话 V；i：无效会话 I；s：AI 解决 S；u：未解决 U；h：转人工 H */
+export type OverviewTotals = { n: number; v: number; i: number; s: number; u: number; h: number };
 
 export type DateRange = { start: number; end: number };
 
@@ -45,9 +49,9 @@ export type TrendPoint = {
   label: string;
   fullLabel: string;
   n: number;
-  e: number;
-  r: number;
-  t: number;
+  v: number;
+  s: number;
+  h: number;
 };
 
 export type OverviewResult = {
@@ -137,7 +141,7 @@ export function granularityFor(filters: OverviewFilters, start: number, end: num
   return 'month';
 }
 
-const emptyPoint = (key: string, start: number, end: number, label: string, fullLabel: string): TrendPoint => ({ key, start, end, label, fullLabel, n: 0, e: 0, r: 0, t: 0 });
+const emptyPoint = (key: string, start: number, end: number, label: string, fullLabel: string): TrendPoint => ({ key, start, end, label, fullLabel, n: 0, v: 0, s: 0, h: 0 });
 
 export function buildBuckets(granularity: TrendGranularity, start: number, end: number): TrendPoint[] {
   const buckets: TrendPoint[] = [];
@@ -204,13 +208,20 @@ export function filterSessions(sessions: OverviewSession[], filters: OverviewFil
   });
 }
 
-const summarize = (sessions: OverviewSession[]): OverviewTotals => sessions.reduce<OverviewTotals>((sum, session) => ({
-  n: sum.n + 1,
-  e: sum.e + (session.ended ? 1 : 0),
-  // 转人工的会话不计入 AI 独立解决
-  r: sum.r + (session.aiResolved && !session.transferred ? 1 : 0),
-  t: sum.t + (session.transferred ? 1 : 0),
-}), { n: 0, e: 0, r: 0, t: 0 });
+// 只统计已结束的正式会话：无效会话不计入解决/转人工，转人工优先于已解决
+const summarize = (sessions: OverviewSession[]): OverviewTotals => sessions.reduce<OverviewTotals>((sum, session) => {
+  if (!session.ended) return sum;
+  sum.n += 1;
+  if (!session.valid) {
+    sum.i += 1;
+    return sum;
+  }
+  sum.v += 1;
+  if (session.outcome === 'handoff') sum.h += 1;
+  else if (session.outcome === 'resolved') sum.s += 1;
+  else sum.u += 1;
+  return sum;
+}, { n: 0, v: 0, i: 0, s: 0, u: 0, h: 0 });
 
 const round1 = (value: number) => {
   const rounded = Math.round(value * 10) / 10;
@@ -238,8 +249,8 @@ export function compareTotals(totals: OverviewTotals, previous: OverviewTotals):
 
   return {
     conversations,
-    aiResolved: pp(ratioOf(totals.r, totals.e), ratioOf(previous.r, previous.e)),
-    transfer: pp(ratioOf(totals.t, totals.n), ratioOf(previous.t, previous.n)),
+    aiResolved: pp(ratioOf(totals.s, totals.v), ratioOf(previous.s, previous.v)),
+    transfer: pp(ratioOf(totals.h, totals.v), ratioOf(previous.h, previous.v)),
   };
 }
 
@@ -257,10 +268,13 @@ export function computeOverview(sessions: OverviewSession[], filters: OverviewFi
     const created = new Date(session.createdAt).getTime();
     for (const point of points) {
       if (created < point.start || created > point.end) continue;
+      if (!session.ended) break;
       point.n += 1;
-      if (session.ended) point.e += 1;
-      if (session.aiResolved && !session.transferred) point.r += 1;
-      if (session.transferred) point.t += 1;
+      if (session.valid) {
+        point.v += 1;
+        if (session.outcome === 'handoff') point.h += 1;
+        else if (session.outcome === 'resolved') point.s += 1;
+      }
       break;
     }
   });
@@ -268,10 +282,10 @@ export function computeOverview(sessions: OverviewSession[], filters: OverviewFi
   return { totals, previous, delta: compareTotals(totals, previous), granularity, points };
 }
 
-export const metricValue = (point: Pick<TrendPoint, 'n' | 'e' | 'r' | 't'>, metric: OverviewMetric): number | null => {
+export const metricValue = (point: Pick<TrendPoint, 'n' | 'v' | 's' | 'h'>, metric: OverviewMetric): number | null => {
   if (metric === 'conversations') return point.n;
-  if (metric === 'aiResolved') return point.e > 0 ? point.r / point.e : null;
-  return point.n > 0 ? point.t / point.n : null;
+  if (metric === 'aiResolved') return point.v > 0 ? point.s / point.v : null;
+  return point.v > 0 ? point.h / point.v : null;
 };
 
 export const formatCount = (value: number) => value.toLocaleString('zh-CN');

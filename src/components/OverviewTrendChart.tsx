@@ -140,11 +140,6 @@ export function OverviewTrendChart({ points, metric, emptyLabel }: { points: Tre
   });
   if (running.length) segments.push(running);
   const baseline = PADDING.top + innerHeight;
-  const isHourly = points.length > 0 && points.every((point) => /^\d{2}:\d{2}$/.test(point.label));
-  const lastValueIndex = values.reduce((last, value, index) => (value !== null ? index : last), -1);
-  const livePoint = isHourly && lastValueIndex === points.length - 1 && segments.length
-    ? segments[segments.length - 1][segments[segments.length - 1].length - 1]
-    : null;
 
   const labelStep = Math.max(1, Math.ceil(points.length / 8));
   const tooltipLeft = hover === null ? 0 : Math.min(Math.max(xAt(hover), 84), Math.max(84, width - 84));
@@ -201,10 +196,6 @@ export function OverviewTrendChart({ points, metric, emptyLabel }: { points: Tre
           />
         </g>;
       })}
-      {livePoint && <g pointerEvents="none" opacity={reveal < 1 ? Math.max(0, (reveal - 0.5) * 2) : undefined}>
-        <circle cx={livePoint.x} cy={livePoint.y} r={2.5} className="overview-chart-live-dot" />
-        <text x={Math.min(livePoint.x, PADDING.left + innerWidth) - 4} y={Math.max(PADDING.top + 12, livePoint.y - 8)} textAnchor="end" className="overview-chart-live-label">截至当前</text>
-      </g>}
       {hover !== null && <g pointerEvents="none">
         <line x1={xAt(hover)} x2={xAt(hover)} y1={PADDING.top} y2={PADDING.top + innerHeight} className="overview-chart-guide" />
         {hoverValue !== null && hoverPlotValue !== null && <>

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { IconQuestionCircle, IconRefresh } from '@arco-design/web-react/icon';
-import { Button, DatePicker, Radio, Select, Tooltip } from '../components/ui';
+import { Button, DatePicker, Message, Radio, Select, Tooltip } from '../components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { ChannelTypeIcon } from '../components/ChannelTypeIcon';
 import { OverviewTrendChart } from '../components/OverviewTrendChart';
+import { OverviewRecordsModal } from '../components/OverviewRecordsModal';
 import { useAppStore } from '../store';
 import type { MetricDelta, OverviewFilters, OverviewMetric, OverviewResult, TimeRangeKey } from '../overview/analytics';
-import { computeOverview, defaultDateRange, formatCount } from '../overview/analytics';
+import { computeOverview, defaultDateRange, formatCount, formatDayKey, resolveRange } from '../overview/analytics';
 import { OVERVIEW_SESSIONS } from '../overview/mockData';
 
 const METRIC_OPTIONS = [
@@ -43,6 +44,16 @@ const deltaTone = (metric: OverviewMetric, delta: MetricDelta) => {
   return positive ? 'positive' : 'negative';
 };
 
+type MetricCard = {
+  key: OverviewMetric;
+  label: string;
+  tip: string;
+  value: string;
+  delta: MetricDelta | null;
+  compare: string;
+  aux: { label: string; value: string }[] | null;
+};
+
 export function OverviewPage() {
   const { state } = useAppStore();
   const location = useLocation();
@@ -57,6 +68,11 @@ export function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [recordsOpen, setRecordsOpen] = useState(false);
+  const [recordsRange, setRecordsRange] = useState(() => {
+    const initial = defaultDateRange(new Date());
+    return { start: initial.startDate, end: initial.endDate };
+  });
   const requestRef = useRef(0);
   const mockMode = new URLSearchParams(location.search).get('mock');
 
@@ -79,6 +95,15 @@ export function OverviewPage() {
       setLoading(false);
     });
   }, [range, startDate, endDate, agentId, channelId, loadDelay, mockMode]);
+
+  // 选中的 Agent / 渠道被删除后，只重置失效的那一项，保留其他筛选条件
+  useEffect(() => {
+    if (agentId !== 'all' && !state.agents.some((agent) => agent.id === agentId)) setAgentId('all');
+  }, [agentId, state.agents]);
+
+  useEffect(() => {
+    if (channelId !== 'all' && !state.channels.some((channel) => channel.id === channelId)) setChannelId('all');
+  }, [channelId, state.channels]);
 
   const refresh = async () => {
     if (refreshing) return;
@@ -105,6 +130,12 @@ export function OverviewPage() {
     await refresh();
   };
 
+  const openRecords = () => {
+    const current = resolveRange({ range, startDate, endDate, agentId, channelId }, new Date());
+    setRecordsRange({ start: formatDayKey(new Date(current.start)), end: formatDayKey(new Date(current.end)) });
+    setRecordsOpen(true);
+  };
+
   const totals = result?.totals ?? null;
   const previous = result?.previous ?? null;
   const showSkeleton = loading && !result;
@@ -117,30 +148,33 @@ export function OverviewPage() {
     })),
   ];
 
-  const cards: { key: OverviewMetric; label: string; tip: string; value: string; delta: MetricDelta | null; compare: string }[] = [
+  const cards: MetricCard[] = [
     {
       key: 'conversations',
       label: '会话数',
-      tip: '所选时间范围内创建的正式会话数，包含处理中与已结束的会话。',
+      tip: '所选时间范围内已结束的正式会话数，等于有效会话与无效会话之和；处理中的会话不计入。',
       value: totals ? formatCount(totals.n) : '—',
       delta: result?.delta.conversations ?? null,
       compare: previous ? `对比上期 ${formatCount(previous.n)}` : '对比上期 —',
+      aux: totals ? [{ label: '有效会话', value: formatCount(totals.v) }, { label: '无效会话', value: formatCount(totals.i) }] : null,
     },
     {
       key: 'aiResolved',
       label: 'AI 解决率',
-      tip: 'AI 独立解决且未转人工的已结束会话数 ÷ 全部已结束会话数。',
-      value: totals ? ratioText(totals.r, totals.e) : '—',
+      tip: 'AI 独立解决且未转人工的有效会话数 ÷ 有效会话数；无效会话不计入。',
+      value: totals ? ratioText(totals.s, totals.v) : '—',
       delta: result?.delta.aiResolved ?? null,
-      compare: previous ? `对比上期 ${ratioText(previous.r, previous.e)}` : '对比上期 —',
+      compare: previous ? `对比上期 ${ratioText(previous.s, previous.v)}` : '对比上期 —',
+      aux: null,
     },
     {
       key: 'transfer',
       label: '转人工率',
-      tip: '执行过转人工指令的会话数 ÷ 总会话数；每场会话最多计 1 次。',
-      value: totals ? ratioText(totals.t, totals.n) : '—',
+      tip: '执行过转人工指令的有效会话数 ÷ 有效会话数；每场会话最多计 1 次，无效会话不计入。',
+      value: totals ? ratioText(totals.h, totals.v) : '—',
       delta: result?.delta.transfer ?? null,
-      compare: previous ? `对比上期 ${ratioText(previous.t, previous.n)}` : '对比上期 —',
+      compare: previous ? `对比上期 ${ratioText(previous.h, previous.v)}` : '对比上期 —',
+      aux: null,
     },
   ];
 
@@ -158,8 +192,12 @@ export function OverviewPage() {
             if (!Array.isArray(value) || value.length < 2) return;
             const nextStart = String(value[0] ?? '');
             const nextEnd = String(value[1] ?? '');
-            // 结束早于开始时不予受理，保持原有区间，不做静默纠正
-            if (!nextStart || !nextEnd || nextEnd < nextStart) return;
+            if (!nextStart || !nextEnd) return;
+            // 结束早于开始时明确提示，保持原有区间
+            if (nextEnd < nextStart) {
+              Message.warning('结束日期不能早于开始日期');
+              return;
+            }
             setStartDate(nextStart);
             setEndDate(nextEnd);
           }}
@@ -190,6 +228,11 @@ export function OverviewPage() {
                   {card.delta && <span className={`overview-delta overview-delta--${deltaTone(card.key, card.delta)}`}>{deltaText(card.delta)}</span>}
                 </div>}
             {showSkeleton
+              ? card.key === 'conversations' && <div className="overview-skeleton overview-skeleton-aux" />
+              : card.aux && <div className="overview-metric-aux">
+                  {card.aux.map((item) => <span key={item.label}>{item.label} <strong>{item.value}</strong></span>)}
+                </div>}
+            {showSkeleton
               ? <div className="overview-skeleton overview-skeleton-compare" />
               : <div className="overview-metric-note">{card.compare}</div>}
           </section>)}
@@ -197,7 +240,10 @@ export function OverviewPage() {
     <section className="overview-chart-card">
       <div className="overview-chart-head">
         <h2>数据趋势</h2>
-        <Radio.Group type="button" size="small" value={metric} options={METRIC_OPTIONS} onChange={(value: OverviewMetric) => setMetric(value)} className="overview-segmented" />
+        <div className="overview-chart-actions">
+          <Button type="text" size="small" className="overview-chart-link" onClick={openRecords}>查看会话记录</Button>
+          <Select value={metric} options={METRIC_OPTIONS} onChange={(value: OverviewMetric) => setMetric(value)} style={{ width: 132 }} aria-label="趋势指标" />
+        </div>
       </div>
       <div className="overview-chart-body">
         {showSkeleton
@@ -209,5 +255,14 @@ export function OverviewPage() {
               : <OverviewTrendChart points={result.points} metric={metric} emptyLabel="暂无可计算数据" />}
       </div>
     </section>
+    {recordsOpen && <OverviewRecordsModal
+      startDate={recordsRange.start}
+      endDate={recordsRange.end}
+      agentId={agentId}
+      channelId={channelId}
+      metric={metric}
+      mockMode={mockMode}
+      onClose={() => setRecordsOpen(false)}
+    />}
   </div>;
 }
